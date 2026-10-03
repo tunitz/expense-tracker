@@ -73,11 +73,9 @@ function Shell() {
           </NavLink>
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Button variant="ghost" size="sm" className="gap-2">
-              <User className="size-4 shrink-0" />
-              <span className="hidden sm:inline truncate max-w-[8rem]">{user?.email}</span>
-            </Button>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="gap-2" />}>
+            <User className="size-4 shrink-0" />
+            <span className="hidden sm:inline truncate max-w-[8rem]">{user?.email}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuSeparator />
