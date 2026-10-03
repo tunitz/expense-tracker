@@ -200,8 +200,9 @@ export default function Dashboard() {
                     tickFormatter={(val: string) => formatMonthLabel(val)}
                   />
                   <YAxis
+                    width={72}
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(v: number) => formatPeso(Math.round(v))}
+                    tickFormatter={(v: number) => `₱${Math.round(v / 100).toLocaleString('en-PH')}`}
                   />
                   <Tooltip formatter={(value) => formatTooltip(Number(value ?? 0))} />
                   <Bar dataKey="totalMinor" fill="var(--foreground, #0f172a)" radius={[4, 4, 0, 0]} />
