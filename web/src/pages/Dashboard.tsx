@@ -64,7 +64,7 @@ function formatMonthLabel(month: string): string {
 }
 
 function formatTooltip(value: number): string {
-  return formatPeso(value * 100);
+  return formatPeso(value);
 }
 
 /* ── component ───────────────────────────────────────────────────── */
@@ -201,7 +201,7 @@ export default function Dashboard() {
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(v: number) => formatPeso(Math.round(v * 100))}
+                    tickFormatter={(v: number) => formatPeso(Math.round(v))}
                   />
                   <Tooltip formatter={(value) => formatTooltip(Number(value ?? 0))} />
                   <Bar dataKey="totalMinor" fill="var(--foreground, #0f172a)" radius={[4, 4, 0, 0]} />
