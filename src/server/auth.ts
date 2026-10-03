@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getRandomValues, createHash } from 'crypto';
 
 const DUMMY_HASH = await Bun.password.hash('dummy');
+export const MAX_PASSWORD_LENGTH = 128;
 
 export class AuthError extends Error {
   constructor(public readonly code: string) {
@@ -22,6 +23,9 @@ export async function register(
   }
   if (password.length < 8) {
     throw new AuthError('weak_password');
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    throw new AuthError('password_too_long');
   }
   const passwordHash = await Bun.password.hash(password);
   const id = randomUUID();
@@ -50,16 +54,16 @@ export async function login(
     .prepare('SELECT id, password_hash FROM users WHERE email = ?')
     .get(normalizedEmail) as { id: string; password_hash: string } | undefined;
 
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    throw new AuthError('invalid_credentials');
+  }
+
   let valid = false;
   if (user) {
     valid = await Bun.password.verify(password, user.password_hash);
   } else {
-    // Constant-time-ish check to avoid timing leak
-    try {
-      await Bun.password.verify(password, '$argon2id$v=19$m=65536,t=3,p=4$c29tZXJhbmRvbXNhbHQ$dummyhashvalue00000000000000000000000000000');
-    } catch {
-      // Invalid hash format — just means verify failed
-    }
+    // Verify against a real hash so unknown emails cost the same as known ones
+    await Bun.password.verify(password, DUMMY_HASH);
   }
   if (!valid) {
     throw new AuthError('invalid_credentials');

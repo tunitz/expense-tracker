@@ -12,6 +12,15 @@ function decodeCp037(str: string): string {
   return out;
 }
 
+export const MAX_PDF_PAGES = 50;
+
+export class TooManyPagesError extends Error {
+  constructor() {
+    super('too_many_pages');
+    this.name = 'TooManyPagesError';
+  }
+}
+
 export class PdfPasswordError extends Error {
   wrong: boolean;
   constructor(message: string, wrong: boolean) {
@@ -42,6 +51,11 @@ export async function extractPages(
       throw new PdfPasswordError(e?.message ?? 'Password required', code === 2);
     }
     throw e;
+  }
+
+  if (doc.numPages > MAX_PDF_PAGES) {
+    await doc.destroy?.();
+    throw new TooManyPagesError();
   }
 
   const pages: Page[] = [];

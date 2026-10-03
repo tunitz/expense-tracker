@@ -259,9 +259,9 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
          LEFT JOIN categories c ON c.id = t.category_id
          ${where}
          ORDER BY t.txn_date DESC, t.created_at DESC, t.id
-         LIMIT ${limit} OFFSET ${offset}`,
+         LIMIT ? OFFSET ?`,
       )
-      .all(...params) as Array<{
+      .all(...params, limit, offset) as Array<{
         id: string;
         txnDate: string;
         description: string;

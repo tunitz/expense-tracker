@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { join, resolve } from 'path';
-import { existsSync, mkdirSync, readFileSync, statSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync } from 'fs';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from './app';
 import { createApp } from './app';
@@ -18,6 +18,13 @@ export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('X-Frame-Options', 'DENY');
     c.header('Referrer-Policy', 'same-origin');
+    c.header(
+      'Content-Security-Policy',
+      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    );
+    if (process.env.COOKIE_SECURE === '1') {
+      c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
   });
 
   // Mount the base app (auth routes, /api/me, requireUser on /api/private/*)
@@ -38,7 +45,13 @@ export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv
     const pathname = url.pathname;
 
     // Guard against path traversal: decode and resolve
-    const safePath = decodeURIComponent(pathname);
+    let safePath: string;
+    try {
+      safePath = decodeURIComponent(pathname);
+    } catch {
+      return c.text('Bad request', 400);
+    }
+    if (safePath.includes('\0')) return c.text('Bad request', 400);
     const fullPath = join(webDir, safePath);
 
     // Verify resolved path starts with webDir
@@ -80,7 +93,8 @@ export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv
 // ── Entry point (only when run directly) ──
 if (import.meta.main) {
   const dataDir = process.env.DATA_DIR ?? './data';
-  mkdirSync(dataDir, { recursive: true });
+  mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  chmodSync(dataDir, 0o700);
   const db = openDb(join(dataDir, 'app.db'));
   let server: Bun.Server<any>;
   server = Bun.serve({

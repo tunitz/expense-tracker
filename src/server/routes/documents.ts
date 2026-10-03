@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from '../app';
-import { extractPages, PdfPasswordError } from '../parsers/extract';
+import { extractPages, PdfPasswordError, TooManyPagesError } from '../parsers/extract';
 import { parseUnionBank } from '../parsers/unionbank';
 import { parseBpi } from '../parsers/bpi';
 import type { ParsedStatement } from '../parsers/types';
@@ -42,6 +42,9 @@ export function documentsRoutes(db: Database): Hono<AppEnv> {
     try {
       pages = await extractPages(bytes, pwd);
     } catch (err) {
+      if (err instanceof TooManyPagesError) {
+        return c.json({ error: 'too_many_pages' }, 413);
+      }
       if (err instanceof PdfPasswordError) {
         return c.json({ error: 'password_required', wrong: err.wrong }, 423);
       }

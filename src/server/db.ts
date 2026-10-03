@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { chmodSync } from 'fs';
 export type { Database };
 
 const SCHEMA = `
@@ -94,6 +95,13 @@ CREATE INDEX ix_txn_doc ON transactions(document_id);
 
 export function openDb(path: string): Database {
   const db = new Database(path);
+  if (path !== ':memory:') {
+    try {
+      chmodSync(path, 0o600);
+    } catch {
+      // best effort
+    }
+  }
 
   db.run('PRAGMA journal_mode=WAL;');
   db.run('PRAGMA foreign_keys=ON;');

@@ -105,6 +105,8 @@ export function UploadDialog({
                     ? "That file is not a PDF"
                     : err.code === "too_large"
                       ? "File is over 15 MB"
+                      : err.code === "too_many_pages"
+                        ? "This PDF has too many pages (limit 50)"
                       : err.code === "unsupported_format"
                         ? "This bank/format is not supported yet"
                         : err.code === "unreadable"

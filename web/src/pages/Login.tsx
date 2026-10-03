@@ -14,6 +14,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   email_taken: 'That email is already registered',
   invalid_email: 'Enter a valid email address',
   weak_password: 'Password must be at least 8 characters',
+  password_too_long: 'Password must be 128 characters or fewer',
   rate_limited: 'Too many attempts, wait a minute',
   signup_disabled: 'Sign-up is disabled',
 };
