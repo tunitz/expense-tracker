@@ -153,25 +153,27 @@ export default function Transactions() {
     <div className="space-y-4">
       {/* header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
-        <Button onClick={() => setFormOpen(true)}>Add expense</Button>
+        <h1 className="text-2xl font-semibold tracking-tight">Spending</h1>
+        <Button size="lg" className="w-full sm:w-auto" onClick={() => setFormOpen(true)}>
+          Add expense
+        </Button>
       </div>
 
       {/* filter bar */}
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <Input
           placeholder="Search merchant…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-w-[180px] flex-1 sm:flex-none sm:max-w-[280px]"
+          className="col-span-2 sm:max-w-[280px] sm:flex-none"
         />
 
         <Select
           value={selectedMonth}
           onValueChange={(v) => setSelectedMonth(v ?? "all")}
         >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Month" />
+          <SelectTrigger className="w-full sm:w-[140px]">
+            <SelectValue placeholder="Month">{(v: string) => (v === "all" ? "All time" : v)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {monthOptions().map((mo) => (
@@ -186,8 +188,12 @@ export default function Transactions() {
           value={selectedCategory}
           onValueChange={(v) => setSelectedCategory(v ?? "all")}
         >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Category" />
+          <SelectTrigger className="w-full sm:w-[160px]">
+            <SelectValue placeholder="Category">
+              {(v: string) =>
+                v === "all" ? "All categories" : v === "none" ? "Uncategorized" : (categories?.find((c) => c.id === v)?.name ?? v)
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
@@ -204,11 +210,13 @@ export default function Transactions() {
           value={selectedSource}
           onValueChange={(v) => setSelectedSource(v ?? "all")}
         >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Source" />
+          <SelectTrigger className="col-span-2 w-full sm:col-span-1 sm:w-[140px]">
+            <SelectValue placeholder="Source">
+              {(v: string) => (v === "pdf" ? "Statement" : v === "manual" ? "Manual" : "All sources")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="all">All sources</SelectItem>
             <SelectItem value="pdf">Statement</SelectItem>
             <SelectItem value="manual">Manual</SelectItem>
           </SelectContent>
@@ -216,7 +224,7 @@ export default function Transactions() {
       </div>
 
       {/* table */}
-      <div className="relative w-full overflow-x-auto rounded-lg border">
+      <div className="relative w-full overflow-x-auto rounded-xl border bg-card max-md:hidden">
         {isLoading && page === 0 ? (
           /* skeleton rows */
           <Table>
@@ -291,6 +299,40 @@ export default function Transactions() {
         )}
       </div>
 
+      {/* mobile list */}
+      <div className="space-y-2 md:hidden">
+        {isLoading && page === 0 ? (
+          Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)
+        ) : data?.items.length === 0 ? (
+          <div className="flex h-40 items-center justify-center rounded-xl border bg-card px-6 text-center text-muted-foreground">
+            No transactions yet. Upload a statement or add an expense.
+          </div>
+        ) : (
+          <>
+            {data && (
+              <p className="px-1 text-xs text-muted-foreground">
+                {data.total} transaction{data.total !== 1 ? "s" : ""}
+              </p>
+            )}
+            {data?.items.map((txn) => (
+              <TransactionCard
+                key={txn.id}
+                txn={txn}
+                categories={categories ?? []}
+                onCategoryChange={(categoryId: string | null) =>
+                  categoryMutation.mutate({ id: txn.id, categoryId })
+                }
+                onDelete={() => {
+                  if (window.confirm("Delete this transaction?")) {
+                    deleteMutation.mutate(txn.id);
+                  }
+                }}
+              />
+            ))}
+          </>
+        )}
+      </div>
+
       {/* pagination footer */}
       {data && data.total > 0 && (
         <div className="flex items-center justify-between">
@@ -302,7 +344,6 @@ export default function Transactions() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              size="sm"
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
             >
@@ -310,7 +351,6 @@ export default function Transactions() {
             </Button>
             <Button
               variant="outline"
-              size="sm"
               disabled={(page + 1) * 50 >= data.total}
               onClick={() => setPage((p) => p + 1)}
             >
@@ -322,7 +362,7 @@ export default function Transactions() {
 
       {/* add-expense dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add expense</DialogTitle>
           </DialogHeader>
@@ -415,7 +455,9 @@ function TransactionRow({
           }}
         >
           <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="—" />
+            <SelectValue placeholder="—">
+              {(v: string) => (v === "none" ? "Uncategorized" : (categories.find((c) => c.id === v)?.name ?? v))}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Uncategorized</SelectItem>
@@ -464,5 +506,94 @@ function TransactionRow({
         </DropdownMenu>
       </TableCell>
     </TableRow>
+  );
+}
+
+
+/* ── mobile card ─────────────────────────────────────────────────── */
+
+function TransactionCard({
+  txn,
+  categories,
+  onCategoryChange,
+  onDelete,
+}: {
+  txn: Txn;
+  categories: Category[];
+  onCategoryChange: (categoryId: string | null) => void;
+  onDelete: () => void;
+}) {
+  const isCredit = txn.kind === "payment" || txn.kind === "credit" || txn.amountMinor < 0;
+  const date = new Date(txn.txnDate + "T00:00:00").toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const fx =
+    txn.fxCurrency && txn.fxAmountMinor != null
+      ? `${txn.fxCurrency} ${formatPeso(txn.fxAmountMinor).replace("PHP", "").trim()}`
+      : null;
+
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{txn.merchant || txn.description}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+            <span>{date}</span>
+            {txn.bank && (
+              <span>
+                {txn.bank.toUpperCase()}
+                {txn.last4 && ` ${txn.last4}`}
+              </span>
+            )}
+            {fx && <span>{fx}</span>}
+            {txn.instalmentSeq && (
+              <Badge variant="outline" className="h-4 text-[10px]">
+                Inst {txn.instalmentSeq}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <div className="text-right">
+          <div
+            className={`font-semibold tabular-nums ${
+              isCredit ? "text-green-600 dark:text-green-400" : ""
+            }`}
+          >
+            {isCredit ? "+" : ""}
+            {formatPeso(Math.abs(txn.amountMinor))}
+          </div>
+          {isCredit && (
+            <Badge variant="outline" className="mt-1 h-4 text-[10px]">
+              {txn.kind}
+            </Badge>
+          )}
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <Select
+          value={txn.categoryId ?? "none"}
+          onValueChange={(v: string | null) => onCategoryChange(v === "none" ? null : v)}
+        >
+          <SelectTrigger className="min-w-0 flex-1">
+            <SelectValue placeholder="Category">
+              {(v: string) => (v === "none" ? "Uncategorized" : (categories.find((c) => c.id === v)?.name ?? v))}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Uncategorized</SelectItem>
+            {categories.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id}>
+                {cat.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="ghost" size="icon" aria-label="Delete transaction" onClick={onDelete}>
+          <Trash2 className="size-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
   );
 }

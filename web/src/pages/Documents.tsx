@@ -73,12 +73,14 @@ export default function Documents() {
     <div className="space-y-4">
       {/* header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Statements</h1>
-        <Button onClick={() => setDialogOpen(true)}>Upload statement</Button>
+        <h1 className="text-2xl font-semibold tracking-tight">Statements</h1>
+        <Button size="lg" className="w-full sm:w-auto" onClick={() => setDialogOpen(true)}>
+          Upload statement
+        </Button>
       </div>
 
       {/* table */}
-      <div className="relative w-full overflow-x-auto rounded-lg border">
+      <div className="relative w-full overflow-x-auto rounded-xl border bg-card max-md:hidden">
         {isLoading ? (
           <Table>
             <TableHeader>
@@ -147,6 +149,30 @@ export default function Documents() {
               ))}
             </TableBody>
           </Table>
+        )}
+      </div>
+
+      {/* mobile list */}
+      <div className="space-y-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
+        ) : documents && documents.length === 0 ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-xl border bg-card px-6 text-center text-muted-foreground">
+            <span>No statements uploaded yet.</span>
+            <span className="text-xs">Upload a BPI or UnionBank PDF to import its transactions.</span>
+          </div>
+        ) : (
+          documents?.map((doc) => (
+            <DocumentCard
+              key={doc.id}
+              doc={doc}
+              onDelete={() => {
+                if (window.confirm("Delete this statement and its imported transactions?")) {
+                  deleteMutation.mutate(doc.id);
+                }
+              }}
+            />
+          ))
         )}
       </div>
 
@@ -224,5 +250,37 @@ function DocumentRow({
         </DropdownMenu>
       </TableCell>
     </TableRow>
+  );
+}
+
+
+/* ── mobile card ─────────────────────────────────────────────────── */
+
+function DocumentCard({ doc, onDelete }: { doc: DocumentRow; onDelete: () => void }) {
+  const sb = statusBadge(doc.status);
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium">
+            {doc.bank.toUpperCase()}
+            {doc.accountLast4 && ` •••• ${doc.accountLast4}`}
+          </div>
+          <div className="truncate text-xs text-muted-foreground">{doc.filename}</div>
+        </div>
+        <Badge variant={sb.variant}>{sb.label}</Badge>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="text-sm text-muted-foreground">
+          <div>{formatPeriod(doc.periodStart, doc.periodEnd)}</div>
+          <div className="text-xs">
+            {doc.txnCount} transaction{doc.txnCount !== 1 ? "s" : ""} · v{doc.version}
+          </div>
+        </div>
+        <Button variant="ghost" size="icon" aria-label="Delete statement" onClick={onDelete}>
+          <Trash2 className="size-4 text-destructive" />
+        </Button>
+      </div>
+    </div>
   );
 }

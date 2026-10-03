@@ -15,7 +15,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Documents from './pages/Documents';
-import { User } from 'lucide-react';
+import { User, LayoutDashboard, ReceiptText, FileText } from 'lucide-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,67 +34,99 @@ function AuthCheck() {
   return <Outlet />;
 }
 
+const NAV = [
+  { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/transactions', label: 'Spending', icon: ReceiptText, end: false },
+  { to: '/documents', label: 'Statements', icon: FileText, end: false },
+] as const;
+
 function Shell() {
   const user = queryClient.getQueryData(['me']) as { email: string } | undefined;
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 border-b bg-background h-14 max-w-5xl mx-auto px-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 text-sm">
-          <span className="font-semibold">Expenses</span>
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              `font-medium transition-colors ${
-                isActive ? 'font-semibold text-foreground' : 'text-muted-foreground'
-              }`
-            }
-          >
-            Dashboard
-          </NavLink>
-          <NavLink
-            to="/transactions"
-            className={({ isActive }) =>
-              `font-medium transition-colors ${
-                isActive ? 'font-semibold text-foreground' : 'text-muted-foreground'
-              }`
-            }
-          >
-            Transactions
-          </NavLink>
-          <NavLink
-            to="/documents"
-            className={({ isActive }) =>
-              `font-medium transition-colors ${
-                isActive ? 'font-semibold text-foreground' : 'text-muted-foreground'
-              }`
-            }
-          >
-            Statements
-          </NavLink>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="gap-2" />}>
-            <User className="size-4 shrink-0" />
-            <span className="hidden sm:inline truncate max-w-[8rem]">{user?.email}</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive cursor-pointer"
-              onSelect={() => {
-                api.logout();
-                queryClient.clear();
-                window.location.href = '/login';
-              }}
+    <div className="min-h-dvh bg-background">
+      <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
+          <span className="text-base font-semibold tracking-tight">Expenses</span>
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+            {NAV.map(({ to, label, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="sm" className="h-11 min-w-11 gap-2 md:h-9" aria-label="Account" />}
             >
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <User className="size-4 shrink-0" />
+              <span className="hidden max-w-[10rem] truncate md:inline">{user?.email}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              {user?.email && (
+                <div className="truncate px-2 py-2 text-xs text-muted-foreground">{user.email}</div>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer py-3 text-destructive focus:text-destructive md:py-1.5"
+                onSelect={() => {
+                  api.logout();
+                  queryClient.clear();
+                  window.location.href = '/login';
+                }}
+              >
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
-      <main className="max-w-5xl mx-auto px-4 py-4">
+      <main className="mx-auto max-w-5xl px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 md:pb-10">
         <Outlet />
       </main>
+      <nav
+        aria-label="Main"
+        className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      >
+        <ul className="mx-auto grid max-w-md grid-cols-3">
+          {NAV.map(({ to, label, icon: Icon, end }) => (
+            <li key={to}>
+              <NavLink
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors ${
+                    isActive ? 'text-primary' : 'text-muted-foreground'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={`flex h-8 w-16 items-center justify-center rounded-full transition-colors ${
+                        isActive ? 'bg-accent' : ''
+                      }`}
+                    >
+                      <Icon className="size-5" strokeWidth={isActive ? 2.4 : 1.9} />
+                    </span>
+                    {label}
+                  </>
+                )}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   );
 }

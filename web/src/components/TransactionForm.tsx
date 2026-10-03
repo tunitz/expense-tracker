@@ -236,7 +236,7 @@ export function TransactionForm({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="category">Category</Label>
               <Select
@@ -245,8 +245,10 @@ export function TransactionForm({
                   setForm((f) => ({ ...f, categoryId: v as string | "none" }))
                 }
               >
-                <SelectTrigger id="category">
-                  <SelectValue placeholder="Select" />
+                <SelectTrigger id="category" className="w-full">
+                  <SelectValue placeholder="Select">
+                    {(v: string) => (v === "none" ? "Uncategorized" : (categories?.find((c) => c.id === v)?.name ?? v))}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Uncategorized</SelectItem>
@@ -267,8 +269,10 @@ export function TransactionForm({
                   setForm((f) => ({ ...f, paymentMethod: v as string | "none" }))
                 }
               >
-                <SelectTrigger id="paymentMethod">
-                  <SelectValue placeholder="Select" />
+                <SelectTrigger id="paymentMethod" className="w-full">
+                  <SelectValue placeholder="Select">
+                    {(v: string) => (v === "none" ? "None" : (PAYMENT_METHODS.find((pm) => pm.value === v)?.label ?? v))}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>

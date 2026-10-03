@@ -6,7 +6,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -90,7 +89,7 @@ export default function Dashboard() {
     return (
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
           <MonthSelector value={selectedMonth} onValueChange={setSelectedMonth} />
         </div>
         <Card>
@@ -164,24 +163,19 @@ export default function Dashboard() {
     <div className="space-y-4">
       {/* header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <MonthSelector value={selectedMonth} onValueChange={setSelectedMonth} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Total spend */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Total spend</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-3xl font-bold">{formatPeso(totalSpend)}</div>
-            <CardDescription>
-              {selectedMonth === 'all'
-                ? 'All time'
-                : `From ${range.from} to ${range.to}`}{' '}
-              · Payments are excluded
-            </CardDescription>
+        <Card className="bg-primary text-primary-foreground md:col-span-2">
+          <CardContent className="space-y-1 py-1">
+            <div className="text-sm opacity-80">
+              {selectedMonth === 'all' ? 'Total spent, all time' : `Total spent, ${range.from} to ${range.to}`}
+            </div>
+            <div className="text-4xl font-semibold tracking-tight tabular-nums">{formatPeso(totalSpend)}</div>
+            <div className="text-xs opacity-70">Payments are excluded</div>
           </CardContent>
         </Card>
 
@@ -200,7 +194,7 @@ export default function Dashboard() {
                     tickFormatter={(val: string) => formatMonthLabel(val)}
                   />
                   <YAxis
-                    width={72}
+                    width={64}
                     tick={{ fontSize: 12 }}
                     tickFormatter={(v: number) => `₱${Math.round(v / 100).toLocaleString('en-PH')}`}
                   />
@@ -270,7 +264,7 @@ export default function Dashboard() {
               {topMerchants.map((m) => (
                 <div
                   key={m.merchant}
-                  className="flex items-center justify-between text-sm"
+                  className="flex items-center justify-between py-1 text-sm"
                 >
                   <div className="min-w-0">
                     <div className="truncate font-medium">{m.merchant}</div>
@@ -302,8 +296,8 @@ function MonthSelector({
 }) {
   return (
     <Select value={value} onValueChange={(v) => onValueChange(v ?? 'all')}>
-      <SelectTrigger className="w-[140px]">
-        <SelectValue placeholder="Month" />
+      <SelectTrigger className="w-full sm:w-[140px]">
+        <SelectValue placeholder="Month">{(v: string) => (v === 'all' ? 'All time' : v)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {monthOptions().map((mo) => (

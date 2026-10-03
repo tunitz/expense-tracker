@@ -80,7 +80,7 @@ export default function Login() {
         </CardHeader>
         <CardContent>
           <Tabs value={tab} onValueChange={(v) => { setTab(v as 'signin' | 'register'); setError(null); }}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid h-12 w-full grid-cols-2">
               <TabsTrigger value="signin">Sign in</TabsTrigger>
               <TabsTrigger value="register">Create account</TabsTrigger>
             </TabsList>
