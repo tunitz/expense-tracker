@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { existsSync, mkdirSync, readFileSync, statSync } from 'fs';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from './app';
@@ -10,6 +10,7 @@ import { transactionsRoutes } from './routes/transactions';
 
 export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
+  const webDir = resolve(opts.webDir);
 
   // Security headers on every response — register FIRST so all routes inherit
   app.use('*', async (c, next) => {
@@ -38,17 +39,17 @@ export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv
 
     // Guard against path traversal: decode and resolve
     const safePath = decodeURIComponent(pathname);
-    const fullPath = join(opts.webDir, safePath);
+    const fullPath = join(webDir, safePath);
 
     // Verify resolved path starts with webDir
-    if (!fullPath.startsWith(opts.webDir + '/')) {
+    if (!fullPath.startsWith(webDir + '/')) {
       return c.text('Not found', 404);
     }
 
     if (existsSync(fullPath)) {
       // Skip directories (fall through to SPA fallback)
       if (statSync(fullPath).isDirectory()) {
-        const indexPath = join(opts.webDir, 'index.html');
+        const indexPath = join(webDir, 'index.html');
         if (existsSync(indexPath)) {
           const body = readFileSync(indexPath, 'utf-8');
           return c.html(body, 200, { 'Cache-Control': 'no-cache' });
@@ -64,7 +65,7 @@ export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv
     }
 
     // SPA fallback: serve index.html
-    const indexPath = join(opts.webDir, 'index.html');
+    const indexPath = join(webDir, 'index.html');
     if (existsSync(indexPath)) {
       const body = readFileSync(indexPath, 'utf-8');
       return c.html(body, 200, { 'Cache-Control': 'no-cache' });
