@@ -79,6 +79,11 @@ export default function Dashboard() {
     queryFn: () => api.summary(range),
   });
 
+  const sortedByMonth = useMemo(
+    () => [...(data?.byMonth ?? [])].sort((a, b) => a.month.localeCompare(b.month)),
+    [data?.byMonth],
+  );
+
   /* ── empty state ───────────────────────────────────────────────── */
 
   if (!isLoading && data && data.spendMinor === 0 && data.byCategory.length === 0) {
@@ -150,10 +155,6 @@ export default function Dashboard() {
   /* ── content ───────────────────────────────────────────────────── */
 
   const summary = data!;
-  const sortedByMonth = useMemo(
-    () => [...summary.byMonth].sort((a, b) => a.month.localeCompare(b.month)),
-    [summary.byMonth],
-  );
 
   const totalSpend = summary.spendMinor;
   const activeCategories = summary.byCategory.filter((c) => c.totalMinor > 0);
