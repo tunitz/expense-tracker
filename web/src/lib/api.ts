@@ -229,7 +229,7 @@ export const api = {
     if (password !== undefined) {
       fd.append('password', password);
     }
-    const res = await fetch('/api/private/documents/upload', {
+    const res = await fetch('/api/private/documents', {
       method: 'POST',
       credentials: 'same-origin',
       body: fd,
