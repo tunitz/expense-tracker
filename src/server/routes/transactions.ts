@@ -1,3 +1,4 @@
+import { ensureDefaultCategories } from '../categorize';
 import { Hono } from 'hono';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from '../app';
@@ -135,6 +136,7 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
   // ── Categories: GET /categories ──
   app.get('/categories', (c) => {
     const userId = c.get('user').id;
+    ensureDefaultCategories(db, userId);
     const rows = db
       .prepare('SELECT id, name, color FROM categories WHERE user_id = ? ORDER BY name')
       .all(userId) as Array<{ id: string; name: string; color: string }>;

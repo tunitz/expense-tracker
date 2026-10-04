@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from '../app';
-import { applyCategoriesToUncategorized } from '../categorize';
+import { applyCategoriesToUncategorized, ensureDefaultCategories } from '../categorize';
 import { extractPages, PdfPasswordError, TooManyPagesError } from '../parsers/extract';
 import { parseUnionBank } from '../parsers/unionbank';
 import { parseBpi } from '../parsers/bpi';
@@ -152,15 +152,19 @@ export function documentsRoutes(db: Database): Hono<AppEnv> {
     const docId = c.req.param('id');
     const doc = db.prepare('SELECT id FROM documents WHERE id = ? AND user_id = ?').get(docId, userId);
     if (!doc) return c.json({ error: 'not_found' }, 404);
-    const updated = applyCategoriesToUncategorized(db, userId, docId);
-    const remaining = (
-      db
-        .prepare(
-          "SELECT COUNT(*) AS n FROM transactions WHERE user_id = ? AND document_id = ? AND category_id IS NULL AND deleted_at IS NULL AND kind NOT IN ('payment','credit')",
-        )
-        .get(userId, docId) as { n: number }
-    ).n;
-    return c.json({ updated, remaining });
+    const countOpen = () =>
+      (
+        db
+          .prepare(
+            "SELECT COUNT(*) AS n FROM transactions WHERE user_id = ? AND document_id = ? AND category_id IS NULL AND deleted_at IS NULL AND kind NOT IN ('payment','credit')",
+          )
+          .get(userId, docId) as { n: number }
+      ).n;
+    const before = countOpen();
+    ensureDefaultCategories(db, userId); // also backfills when it seeds
+    applyCategoriesToUncategorized(db, userId, docId);
+    const remaining = countOpen();
+    return c.json({ updated: before - remaining, remaining });
   });
 
   app.delete('/:id', (c) => {

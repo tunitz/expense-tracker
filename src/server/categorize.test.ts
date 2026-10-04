@@ -362,3 +362,42 @@ describe('POST /documents/:id/recategorize', () => {
     expect(catOf(db, t)).toBeNull();
   });
 });
+
+describe('users who stayed logged in across the deploy (no categories yet)', () => {
+  async function setup() {
+    const { Hono } = await import('hono');
+    const { documentsRoutes } = await import('./routes/documents');
+    const { transactionsRoutes } = await import('./routes/transactions');
+    const db = openDb(':memory:');
+    const u = userWith(db);
+    const app = new Hono<any>();
+    app.use('*', async (c, next) => { c.set('user', { id: u, email: 'a@b.c' }); await next(); });
+    app.route('/d', documentsRoutes(db));
+    app.route('/t', transactionsRoutes(db));
+    const acct = randomUUID(), doc = randomUUID();
+    db.run("INSERT INTO accounts (id, user_id, bank, name, last4, account_ref) VALUES (?, ?, 'bpi', 'X', '1', ?)", [acct, u, acct]);
+    db.run(
+      "INSERT INTO documents (id, user_id, account_id, sha256, filename, statement_date, period_start, period_end, totals_json, status, version, uploaded_at) VALUES (?, ?, ?, 'a', 'f.pdf', '2026-09-14', '2026-08-15', '2026-09-14', '{}', 'parsed', 1, ?)",
+      [doc, u, acct, Date.now()],
+    );
+    const t = addTxn(db, u, 'GRAB, MAKATI, PH');
+    db.run('UPDATE transactions SET document_id = ? WHERE id = ?', [doc, t]);
+    return { db, app, u, doc, t };
+  }
+
+  it('Re-categorize seeds the defaults first, then categorizes', async () => {
+    const { db, app, doc, t } = await setup();
+    const res = await app.request(`/d/${doc}/recategorize`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(catOf(db, t)).toBe('Transport'); // seeding backfilled it
+    expect(await res.json()).toEqual({ updated: 1, remaining: 0 }); // and the count reflects it
+  });
+
+  it('listing categories seeds the defaults so the dropdown is never empty', async () => {
+    const { db, app, t } = await setup();
+    const res = await app.request('/t/categories');
+    const cats = (await res.json()) as { name: string }[];
+    expect(cats.map((c) => c.name).sort()).toEqual(DEFAULT_CATEGORIES.map((c) => c.name).sort());
+    expect(catOf(db, t)).toBe('Transport');
+  });
+});
