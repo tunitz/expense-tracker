@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { buildTxnQuery } from "@/lib/filters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -55,16 +56,6 @@ function monthOptions(): { label: string; value: string }[] {
     months.push({ label: `${y}-${m}`, value: `${y}-${m}` });
   }
   return months;
-}
-
-function monthToRange(value: string): { from?: string; to?: string } {
-  if (value === "all") return {};
-  const [y, m] = value.split("-");
-  if (!y || !m) return {};
-  const first = `${y}-${m}-01`;
-  const lastDay = new Date(Number(y), Number(m), 0).getDate();
-  const last = `${y}-${m}-${String(lastDay).padStart(2, "0")}`;
-  return { from: first, to: last };
 }
 
 /* ── component ───────────────────────────────────────────────────── */
@@ -104,17 +95,13 @@ export default function Transactions() {
 
   /* derived query params */
   const filters = useMemo<TxnQuery>(() => {
-    const range = monthToRange(selectedMonth);
-    const q: TxnQuery = {
-      ...range,
-      limit: 50,
-      offset: page * 50,
-    };
-    if (debouncedSearch) q.q = debouncedSearch;
-    if (selectedCategory !== "all")
-      q.categoryId = selectedCategory === "none" ? "" : selectedCategory;
-    if (selectedSource !== "all") q.source = selectedSource;
-    return q;
+    return buildTxnQuery({
+      month: selectedMonth,
+      category: selectedCategory,
+      source: selectedSource,
+      search: debouncedSearch,
+      page,
+    }) as TxnQuery;
   }, [debouncedSearch, selectedMonth, selectedCategory, selectedSource, page]);
 
   /* transactions query */
