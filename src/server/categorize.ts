@@ -72,12 +72,14 @@ export function ensureDefaultCategories(db: Database, userId: string): void {
 }
 
 /** Assign a category to every uncategorized, non-deleted transaction the rules recognise. */
-export function applyCategoriesToUncategorized(db: Database, userId: string): number {
+export function applyCategoriesToUncategorized(db: Database, userId: string, documentId?: string): number {
   const cats = db.query('SELECT id, name FROM categories WHERE user_id = ?').all(userId) as { id: string; name: string }[];
   const byName = new Map(cats.map((c) => [c.name, c.id]));
   const rows = db
-    .query('SELECT id, merchant, kind FROM transactions WHERE user_id = ? AND category_id IS NULL AND deleted_at IS NULL')
-    .all(userId) as { id: string; merchant: string; kind: string }[];
+    .query(
+      `SELECT id, merchant, kind FROM transactions WHERE user_id = ? AND category_id IS NULL AND deleted_at IS NULL${documentId ? ' AND document_id = ?' : ''}`,
+    )
+    .all(...(documentId ? [userId, documentId] : [userId])) as { id: string; merchant: string; kind: string }[];
   const upd = db.prepare('UPDATE transactions SET category_id = ? WHERE id = ? AND user_id = ?');
   let changed = 0;
   for (const r of rows) {

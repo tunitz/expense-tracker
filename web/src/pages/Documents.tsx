@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadDialog } from "@/components/UploadDialog";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Tags, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 
@@ -67,6 +68,23 @@ export default function Documents() {
       queryClient.invalidateQueries({ queryKey: ["txns"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
     },
+  });
+
+  const recategorizeMutation = useMutation({
+    mutationFn: (id: string) => api.recategorizeDocument(id),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["txns"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+      toast.success(
+        res.updated > 0
+          ? `Categorized ${res.updated} transaction${res.updated !== 1 ? "s" : ""}` +
+              (res.remaining > 0 ? `, ${res.remaining} still uncategorized` : "")
+          : res.remaining > 0
+            ? `Nothing new to categorize (${res.remaining} uncategorized)`
+            : "Everything is already categorized",
+      );
+    },
+    onError: () => toast.error("Could not re-categorize"),
   });
 
   return (
@@ -140,6 +158,7 @@ export default function Documents() {
                 <DocumentRow
                   key={doc.id}
                   doc={doc}
+                  onRecategorize={() => recategorizeMutation.mutate(doc.id)}
                   onDelete={() => {
                     if (window.confirm("Delete this statement and its imported transactions?")) {
                       deleteMutation.mutate(doc.id);
@@ -166,6 +185,7 @@ export default function Documents() {
             <DocumentCard
               key={doc.id}
               doc={doc}
+              onRecategorize={() => recategorizeMutation.mutate(doc.id)}
               onDelete={() => {
                 if (window.confirm("Delete this statement and its imported transactions?")) {
                   deleteMutation.mutate(doc.id);
@@ -195,9 +215,11 @@ export default function Documents() {
 function DocumentRow({
   doc,
   onDelete,
+  onRecategorize,
 }: {
   doc: DocumentRow;
   onDelete: () => void;
+  onRecategorize: () => void;
 }) {
   const sb = statusBadge(doc.status);
 
@@ -239,6 +261,10 @@ function DocumentRow({
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onRecategorize}>
+              <Tags className="mr-2 size-4" />
+              Re-categorize
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={onDelete}
@@ -256,7 +282,15 @@ function DocumentRow({
 
 /* ── mobile card ─────────────────────────────────────────────────── */
 
-function DocumentCard({ doc, onDelete }: { doc: DocumentRow; onDelete: () => void }) {
+function DocumentCard({
+  doc,
+  onDelete,
+  onRecategorize,
+}: {
+  doc: DocumentRow;
+  onDelete: () => void;
+  onRecategorize: () => void;
+}) {
   const sb = statusBadge(doc.status);
   return (
     <div className="rounded-xl border bg-card p-3">
@@ -277,9 +311,15 @@ function DocumentCard({ doc, onDelete }: { doc: DocumentRow; onDelete: () => voi
             {doc.txnCount} transaction{doc.txnCount !== 1 ? "s" : ""} · v{doc.version}
           </div>
         </div>
-        <Button variant="ghost" size="icon" aria-label="Delete statement" onClick={onDelete}>
-          <Trash2 className="size-4 text-destructive" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" onClick={onRecategorize}>
+            <Tags className="size-4" />
+            Re-categorize
+          </Button>
+          <Button variant="ghost" size="icon" aria-label="Delete statement" onClick={onDelete}>
+            <Trash2 className="size-4 text-destructive" />
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from '../app';
+import { applyCategoriesToUncategorized } from '../categorize';
 import { extractPages, PdfPasswordError, TooManyPagesError } from '../parsers/extract';
 import { parseUnionBank } from '../parsers/unionbank';
 import { parseBpi } from '../parsers/bpi';
@@ -145,6 +146,23 @@ export function documentsRoutes(db: Database): Hono<AppEnv> {
   });
 
   // DELETE /:id
+  // POST /:id/recategorize — apply the current rules to this statement's uncategorized rows
+  app.post('/:id/recategorize', (c) => {
+    const userId = c.get('user').id;
+    const docId = c.req.param('id');
+    const doc = db.prepare('SELECT id FROM documents WHERE id = ? AND user_id = ?').get(docId, userId);
+    if (!doc) return c.json({ error: 'not_found' }, 404);
+    const updated = applyCategoriesToUncategorized(db, userId, docId);
+    const remaining = (
+      db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM transactions WHERE user_id = ? AND document_id = ? AND category_id IS NULL AND deleted_at IS NULL AND kind NOT IN ('payment','credit')",
+        )
+        .get(userId, docId) as { n: number }
+    ).n;
+    return c.json({ updated, remaining });
+  });
+
   app.delete('/:id', (c) => {
     const userId = c.get('user').id;
     const docId = c.req.param('id');

@@ -286,3 +286,79 @@ describe('default category colors', () => {
     expect(colors).not.toContain('#64748b');
   });
 });
+
+describe('POST /documents/:id/recategorize', () => {
+  async function setup() {
+    const { Hono } = await import('hono');
+    const { documentsRoutes } = await import('./routes/documents');
+    const db = openDb(':memory:');
+    const u = userWith(db);
+    const other = userWith(db);
+    const app = new Hono<any>();
+    app.use('*', async (c, next) => { c.set('user', { id: u, email: 'a@b.c' }); await next(); });
+    app.route('/d', documentsRoutes(db));
+    const mkDoc = (uid: string, sha: string) => {
+      const acct = randomUUID(), doc = randomUUID();
+      db.run("INSERT INTO accounts (id, user_id, bank, name, last4, account_ref) VALUES (?, ?, 'bpi', 'X', '1', ?)", [acct, uid, acct]);
+      db.run(
+        "INSERT INTO documents (id, user_id, account_id, sha256, filename, statement_date, period_start, period_end, totals_json, status, version, uploaded_at) VALUES (?, ?, ?, ?, 'f.pdf', '2026-09-14', '2026-08-15', '2026-09-14', '{}', 'parsed', 1, ?)",
+        [doc, uid, acct, sha, Date.now()],
+      );
+      return doc;
+    };
+    const inDoc = (uid: string, doc: string, merchant: string) => {
+      const id = addTxn(db, uid, merchant);
+      db.run('UPDATE transactions SET document_id = ? WHERE id = ?', [doc, id]);
+      return id;
+    };
+    return { db, app, u, other, mkDoc, inDoc };
+  }
+  const call = (app: any, id: string) => app.request(`/d/${id}/recategorize`, { method: 'POST' });
+
+  it('categorizes only that statement\'s uncategorized rows and reports counts', async () => {
+    const { db, app, u, mkDoc, inDoc } = await setup();
+    ensureDefaultCategories(db, u);
+    const d1 = mkDoc(u, 'a'), d2 = mkDoc(u, 'b');
+    const grab = inDoc(u, d1, 'GRAB, MAKATI, PH');
+    const unknown = inDoc(u, d1, 'ZZ UNKNOWN SHOP');
+    const elsewhere = inDoc(u, d2, 'GRAB, PASIG CITY, PH');
+    const res = await call(app, d1);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ updated: 1, remaining: 1 });
+    expect(catOf(db, grab)).toBe('Transport');
+    expect(catOf(db, unknown)).toBeNull();
+    expect(catOf(db, elsewhere)).toBeNull();
+  });
+
+  it('never overwrites a category the user already set', async () => {
+    const { db, app, u, mkDoc, inDoc } = await setup();
+    ensureDefaultCategories(db, u);
+    const d = mkDoc(u, 'a');
+    const t = inDoc(u, d, 'GRAB, MAKATI, PH');
+    const shopping = (db.query("SELECT id FROM categories WHERE user_id = ? AND name = 'Shopping'").get(u) as { id: string }).id;
+    db.run('UPDATE transactions SET category_id = ? WHERE id = ?', [shopping, t]);
+    await call(app, d);
+    expect(catOf(db, t)).toBe('Shopping');
+  });
+
+  it('picks up transactions that predate the categories', async () => {
+    const { db, app, u, mkDoc, inDoc } = await setup();
+    const d = mkDoc(u, 'a');
+    const t = inDoc(u, d, 'JOLLIBEE JB1');
+    ensureDefaultCategories(db, u); // would already backfill; clear to simulate an old import
+    db.run('UPDATE transactions SET category_id = NULL WHERE id = ?', [t]);
+    const res = await call(app, d);
+    expect(((await res.json()) as { updated: number }).updated).toBe(1);
+    expect(catOf(db, t)).toBe('Food');
+  });
+
+  it('404 for another user\'s or unknown statement', async () => {
+    const { db, app, u, other, mkDoc, inDoc } = await setup();
+    ensureDefaultCategories(db, u);
+    const theirs = mkDoc(other, 'z');
+    const t = inDoc(other, theirs, 'GRAB, MAKATI, PH');
+    expect((await call(app, theirs)).status).toBe(404);
+    expect((await call(app, randomUUID())).status).toBe(404);
+    expect(catOf(db, t)).toBeNull();
+  });
+});

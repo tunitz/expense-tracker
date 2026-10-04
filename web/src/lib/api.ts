@@ -221,6 +221,10 @@ export const api = {
     return request<void>(`DELETE`, `/api/private/documents/${id}`);
   },
 
+  async recategorizeDocument(id: string) {
+    return request<{ updated: number; remaining: number }>(`POST`, `/api/private/documents/${id}/recategorize`);
+  },
+
   async uploadDocument(
     file: File,
     password?: string,
