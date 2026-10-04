@@ -172,6 +172,7 @@ export const api = {
     id: string,
     patch: Partial<{
       categoryId: string | null;
+      applyToMerchant: boolean;
       notes: string | null;
       paymentMethod: string | null;
       merchant: string;
@@ -179,7 +180,7 @@ export const api = {
       txnDate: string;
     }>,
   ) {
-    return request<void>(`PATCH`, `/api/private/transactions/${id}`, patch);
+    return request<{ ok: boolean; updated?: number }>(`PATCH`, `/api/private/transactions/${id}`, patch);
   },
 
   async deleteTxn(id: string) {

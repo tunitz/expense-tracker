@@ -1,5 +1,6 @@
 import type { Database } from './db';
 import type { ParsedStatement } from './parsers/types';
+import { categoryForTxn } from './categorize';
 
 export type ImportResult = {
   documentId: string;
@@ -69,6 +70,10 @@ export function importStatement(
         'INSERT INTO transactions (id, user_id, account_id, document_id, source, txn_date, posted_date, description, merchant, amount_minor, fx_amount_minor, fx_currency, kind, instalment_ref, instalment_seq, sub_account, occurrence, dedupe_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       );
       const relinkTxnStmt = db.prepare('UPDATE transactions SET document_id = ? WHERE id = ?');
+      const catIds = new Map(
+        (db.query('SELECT id, name FROM categories WHERE user_id = ?').all(userId) as { id: string; name: string }[]).map((c) => [c.name, c.id]),
+      );
+      const setCatStmt = db.prepare('UPDATE transactions SET category_id = ? WHERE id = ?');
 
       for (const t of st.txns) {
         const sub = t.subAccount ?? '';
@@ -111,6 +116,9 @@ export function importStatement(
             dedupeKey,
             Date.now(),
           );
+          const catName = categoryForTxn({ merchant: t.merchant, kind: t.kind });
+          const catId = catName ? catIds.get(catName) : undefined;
+          if (catId) setCatStmt.run(catId, txnId);
           added++;
         }
       }

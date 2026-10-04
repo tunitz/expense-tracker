@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -137,15 +138,31 @@ export default function Transactions() {
     mutationFn: ({
       id,
       categoryId,
+      applyToMerchant,
     }: {
       id: string;
       categoryId: string | null;
-    }) => api.patchTxn(id, { categoryId }),
-    onSuccess: () => {
+      applyToMerchant?: boolean;
+    }) => api.patchTxn(id, { categoryId, applyToMerchant }),
+    onSuccess: (res) => {
+      if (res.updated && res.updated > 1) toast.success(`Updated ${res.updated} transactions`);
       queryClient.invalidateQueries({ queryKey: ["txns"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
     },
   });
+
+  /* inline category update, with an offer to apply it to the whole merchant */
+  const changeCategory = (txn: Txn, categoryId: string | null) => {
+    const sameMerchant = (data?.items ?? []).filter(
+      (t) => t.id !== txn.id && t.merchant === txn.merchant,
+    ).length;
+    const applyToMerchant =
+      sameMerchant > 0 &&
+      window.confirm(
+        `Apply to all ${sameMerchant + 1} transactions from "${txn.merchant}"?`,
+      );
+    categoryMutation.mutate({ id: txn.id, categoryId, applyToMerchant });
+  };
 
   /* ── render ────────────────────────────────────────────────────── */
 
@@ -285,7 +302,7 @@ export default function Transactions() {
                   txn={txn}
                   categories={categories ?? []}
                   onCategoryChange={(categoryId: string | null) =>
-                    categoryMutation.mutate({ id: txn.id, categoryId })
+                    changeCategory(txn, categoryId)
                   }
                   onDelete={() => {
                     if (window.confirm("Delete this transaction?")) {
@@ -320,7 +337,7 @@ export default function Transactions() {
                 txn={txn}
                 categories={categories ?? []}
                 onCategoryChange={(categoryId: string | null) =>
-                  categoryMutation.mutate({ id: txn.id, categoryId })
+                  changeCategory(txn, categoryId)
                 }
                 onDelete={() => {
                   if (window.confirm("Delete this transaction?")) {

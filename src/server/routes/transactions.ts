@@ -392,6 +392,7 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
     const txnId = c.req.param('id');
     const body: {
       categoryId?: string | null;
+      applyToMerchant?: boolean;
       notes?: string | null;
       paymentMethod?: string | null;
       merchant?: string;
@@ -402,9 +403,9 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
     // Check transaction exists and belongs to user
     const txn = db
       .prepare(
-        'SELECT id, source FROM transactions WHERE id = ? AND user_id = ?',
+        'SELECT id, source, merchant FROM transactions WHERE id = ? AND user_id = ?',
       )
-      .get(txnId, userId) as { id: string; source: string } | undefined;
+      .get(txnId, userId) as { id: string; source: string; merchant: string } | undefined;
 
     if (!txn) {
       return c.json({ error: 'not_found' }, 404);
@@ -493,12 +494,23 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
       return c.json({ ok: true });
     }
 
+    // Apply the category to every other transaction from the same merchant (this user only)
+    let updated = 1;
+    if (body.applyToMerchant === true && body.categoryId !== undefined) {
+      const r = db
+        .prepare(
+          'UPDATE transactions SET category_id = ? WHERE user_id = ? AND merchant = ? AND deleted_at IS NULL AND id != ? AND kind NOT IN (\'payment\', \'credit\')',
+        )
+        .run(body.categoryId, userId, txn.merchant, txnId);
+      updated += r.changes;
+    }
+
     params.push(txnId, userId);
     db.prepare(`UPDATE transactions SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`).run(
       ...params,
     );
 
-    return c.json({ ok: true });
+    return c.json({ ok: true, updated });
   });
 
   // ── DELETE /:id ──

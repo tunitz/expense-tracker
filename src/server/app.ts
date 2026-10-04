@@ -3,6 +3,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { getConnInfo } from 'hono/bun';
 import type { Context } from 'hono';
+import { ensureDefaultCategories } from './categorize';
 import type { Database } from 'bun:sqlite';
 import {
   register,
@@ -102,6 +103,7 @@ export function createApp(db: Database): Hono<AppEnv> {
       }
       throw err;
     }
+    ensureDefaultCategories(db, result.id);
     const session = await login(db, creds.email, creds.password);
     setCookie(c, 'sid', session.token, {
       httpOnly: true,
@@ -127,6 +129,7 @@ export function createApp(db: Database): Hono<AppEnv> {
     try {
       const session = await login(db, creds.email, creds.password);
       failures.delete(normalizedEmail);
+      ensureDefaultCategories(db, session.userId);
       setCookie(c, 'sid', session.token, {
         httpOnly: true,
         sameSite: 'Lax',
