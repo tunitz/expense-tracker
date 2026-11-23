@@ -12,7 +12,15 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-# Stage 3: Slim runtime image
+# Build the PDF decoder against the same Debian base as the runtime.
+FROM rust:1.97-bookworm AS decoder
+WORKDIR /build
+COPY rust/statement-cp037/Cargo.toml rust/statement-cp037/Cargo.lock rust/statement-cp037/build.rs ./
+COPY rust/statement-cp037/src ./src
+RUN cargo build --release --locked && \
+    cp target/release/libstatement_cp037.so /statement_cp037.node
+
+# Slim runtime image
 FROM oven/bun:1-slim
 WORKDIR /app
 ENV NODE_ENV=production PORT=3020 DATA_DIR=/data WEB_DIR=/app/web/dist
@@ -20,6 +28,7 @@ ENV NODE_ENV=production PORT=3020 DATA_DIR=/data WEB_DIR=/app/web/dist
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src/server ./src/server
+COPY --from=decoder /statement_cp037.node ./rust/statement-cp037/statement_cp037.node
 COPY tsconfig.json ./
 COPY --from=web /app/web/dist ./web/dist
 

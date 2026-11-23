@@ -5,6 +5,7 @@ import { openDb } from '../db';
 import { register, login } from '../auth';
 import type { AppEnv } from '../app';
 import { documentsRoutes } from './documents';
+import { statementPdf } from '../../../scripts/profile-statements';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -74,6 +75,19 @@ describe('documents routes', () => {
   });
 
   describe('POST /documents', () => {
+    it('uploads a synthetic multi-page statement and rejects a duplicate', async () => {
+      const app = createAppWithUser(db, user1Id);
+      const pdf = statementPdf(2, 8);
+      const upload = () => app.request('/documents', {
+        method: 'POST',
+        body: makeFormData(pdf, 'synthetic.pdf'),
+      });
+      const response = await upload();
+      expect(response.status).toBe(201);
+      expect(await response.json()).toMatchObject({ bank: 'unionbank', added: 16, warnings: [] });
+      expect((await upload()).status).toBe(409);
+    });
+
     it('rejects upload without file => 400', async () => {
       const app = createAppWithUser(db, user1Id);
       const form = makeNoFileForm();

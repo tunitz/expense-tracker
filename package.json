@@ -3,6 +3,12 @@
   "module": "src/server/main.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun run build:native && bun scripts/dev.ts",
+    "build:native": "bun scripts/build-native.ts",
+    "build": "bun run --cwd web build",
+    "start": "bun run build:native && bun src/server/main.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
