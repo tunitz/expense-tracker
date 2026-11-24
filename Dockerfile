@@ -1,9 +1,9 @@
 # Stage 1: Build the web frontend
 FROM oven/bun:1 AS web
-WORKDIR /app/web
-COPY web/package.json web/bun.lock ./
+WORKDIR /app
+COPY package.json bun.lock bunfig.toml tsconfig.json ./
 RUN bun install --frozen-lockfile
-COPY web/ ./
+COPY web/ ./web/
 RUN bun run build
 
 # Stage 2: Install production dependencies for the server

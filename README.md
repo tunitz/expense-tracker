@@ -8,7 +8,6 @@ From the repo root, install dependencies and start the API and web dev server to
 
 ```bash
 bun install --frozen-lockfile
-bun install --cwd web --frozen-lockfile
 bun run dev
 ```
 
@@ -58,7 +57,7 @@ The default host port is 3020. Data persists in the named volume
   - `parsers/bpi.ts` — BPI PDF statement parser
   - `parsers/unionbank.ts` — UnionBank PDF statement parser
   - `main.ts` — entry point
-- `web/` — React frontend bundled with Bun (own `package.json`)
+- `web/` — React frontend bundled with Bun
 - `Dockerfile` — container image definition
 - `docker-compose.yml` — compose configuration
 
@@ -104,11 +103,14 @@ See [the decoder README](rust/statement-cp037/README.md) for build and parity ch
 ## Testing & Build
 
 ```bash
-# Run tests (root)
+# Run tests
 bun test
 
-# Typecheck the web app
-cd web && bunx tsc -b
+# Typecheck server and web app
+bun run typecheck
+
+# Lint the web app
+bun run lint
 
 # Build the web app (outputs web/dist)
 bun run build
