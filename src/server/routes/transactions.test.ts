@@ -144,17 +144,17 @@ describe('transactions routes', () => {
       expect(body.items[0]!.merchant.toLowerCase()).toContain('grab');
     });
 
-    it('filters by category none (uncategorized)', async () => {
+    it('filters by category none (uncategorized spend only, excluding payment/credit)', async () => {
       const app = createAppWithUser(db, user1Id);
       seedData(db, user1Id, accountId);
 
       const res = await app.request('/transactions?categoryId=none');
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { items: Array<{ categoryId: string | null }> };
-      expect(body.items.length).toBe(3);
-      body.items.forEach((item) => {
-        expect(item.categoryId).toBeNull();
-      });
+      const body = (await res.json()) as { items: Array<{ categoryId: string | null; kind: string; merchant: string }> };
+      expect(body.items.length).toBe(1);
+      expect(body.items[0]!.categoryId).toBeNull();
+      expect(body.items[0]!.kind).toBe('purchase');
+      expect(body.items[0]!.merchant).toBe('RANDOM SHOP');
     });
 
     it('filters by accountId', async () => {

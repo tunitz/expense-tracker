@@ -63,6 +63,20 @@ describe('categoryForTxn', () => {
     ['SKECHERS R TACLOBAN, LEYTE, PH', 'Shopping'],
     ['AQUAFLASK ROB TACLOBAN, TACLOBAN, PH', 'Shopping'],
     ['DATABLITZ-ECEPP', 'Shopping'],
+    ['ROBINSONS SPMKT RP ORMOC, LEYTE, PH', 'Food'],
+    ['ROBINSONS SUPERMARKET, TACLOBAN CITY, PH', 'Food'],
+    ['LAZADA SPMKT, TAGUIG CITY, PH', 'Shopping'],
+    ['LAZADA PHILS, TAGUIG CITY, PH', 'Shopping'],
+    ['MOVE IT, PASIG CITY, PH', 'Transport'],
+    ['GRAB MOVEIT, PASIG CITY, PH', 'Transport'],
+    ['Maxim Client, CEBU CITY, PH', 'Transport'],
+    ['OCEANJET, CEBU CITY, PH', 'Transport'],
+    ['COMMANDCODE.AI, COMMANDCODE.A, US', 'Subscriptions'],
+    ['OPENCODE, OPENCODE.AI, US', 'Subscriptions'],
+    ['KENNY ROGERS SM ORMOC, ORMOC, PH', 'Food'],
+    ['NYBUFFALOBRADSHOTWING, CEBU CITY, PH', 'Food'],
+    ['THE BURGER JOINT, CEBU CITY, PH', 'Food'],
+    ['SSD RP RS TACLOBAN, TACLOBAN, PH', 'Health'],
   ];
   for (const [merchant, expected] of cases) {
     it(`${merchant} -> ${expected}`, () => {
@@ -74,16 +88,19 @@ describe('categoryForTxn', () => {
     expect(categoryForTxn({ merchant: 'grab makati', kind: 'purchase' })).toBe('Transport');
   });
 
-  it('instalment principal lines carry no merchant, so they stay uncategorized', () => {
-    expect(categoryForTxn({ merchant: 'Instalment Principal (02/06) [9509750]', kind: 'instalment_principal' })).toBeNull();
+  it('instalment principal lines without a known merchant default to Installments', () => {
+    expect(categoryForTxn({ merchant: 'Instalment Principal [9509750]', kind: 'instalment_principal' })).toBe('Installments');
   });
 
-  it('a vehicle dealer is a big one-off purchase, so it stays uncategorized for the user to choose', () => {
-    expect(categoryForTxn({ merchant: 'MITSUBISHI MOTORS TAC, LEYTE, PH', kind: 'purchase' })).toBeNull();
+  it('merchant 0% instalment rows still match their merchant category', () => {
+    expect(categoryForTxn({ merchant: 'POWER MAC ROB CEBU', kind: 'instalment_principal' })).toBe('Shopping');
+    expect(categoryForTxn({ merchant: 'ABENSON-TACLOBAN', kind: 'instalment_principal' })).toBe('Shopping');
   });
 
-  it('unknown merchants stay uncategorized (null)', () => {
-    expect(categoryForTxn({ merchant: 'ZZ UNKNOWN SHOP', kind: 'purchase' })).toBeNull();
+  it('unknown merchants default to Others instead of staying uncategorized', () => {
+    expect(categoryForTxn({ merchant: '614 ORMOC, ORMOC, PH', kind: 'purchase' })).toBe('Others');
+    expect(categoryForTxn({ merchant: 'MITSUBISHI MOTORS TAC, LEYTE, PH', kind: 'purchase' })).toBe('Others');
+    expect(categoryForTxn({ merchant: 'ZZ UNKNOWN SHOP', kind: 'purchase' })).toBe('Others');
   });
 
   it('instalment interest goes to Fees & Interest regardless of merchant text', () => {
@@ -132,7 +149,7 @@ describe('ensureDefaultCategories', () => {
     const pay = addTxn(db, u, 'Payment - Thank You', 'payment');
     ensureDefaultCategories(db, u);
     expect(catOf(db, grab)).toBe('Transport');
-    expect(catOf(db, unknown)).toBeNull();
+    expect(catOf(db, unknown)).toBe('Others');
     expect(catOf(db, pay)).toBeNull();
   });
 
@@ -182,7 +199,7 @@ describe('wiring', () => {
     expect(catOf(db, t)).toBe('Transport');
   });
 
-  it('importStatement categorizes new rows but leaves unknown merchants empty', async () => {
+  it('importStatement categorizes known rows, puts unknown merchants in Others, and leaves payments null', async () => {
     const { importStatement } = await import('./import');
     const db = openDb(':memory:');
     const u = userWith(db);
@@ -201,7 +218,66 @@ describe('wiring', () => {
     };
     importStatement(db, u, st, { sha256: 'abc', filename: 'f.pdf', storedPath: null });
     const rows = db.query('SELECT merchant, c.name AS cat FROM transactions t LEFT JOIN categories c ON c.id = t.category_id WHERE t.user_id = ? ORDER BY t.txn_date').all(u) as { merchant: string; cat: string | null }[];
-    expect(rows.map((r) => r.cat)).toEqual(['Food', null, null]);
+    expect(rows.map((r) => r.cat)).toEqual(['Food', 'Others', null]);
+  });
+
+  it('user merchant_rules auto-categorize future statement imports (including instalment plans across months)', async () => {
+    const { importStatement } = await import('./import');
+    const { Hono } = await import('hono');
+    const { transactionsRoutes } = await import('./routes/transactions');
+    const db = openDb(':memory:');
+    const u = userWith(db);
+    const otherUser = userWith(db);
+    ensureDefaultCategories(db, u);
+    ensureDefaultCategories(db, otherUser);
+
+    const app = new Hono<any>();
+    app.use('*', async (c, next) => { c.set('user', { id: u, email: 'a@b.c' }); await next(); });
+    app.route('/t', transactionsRoutes(db));
+
+    const base = { postedDate: null, fxAmountMinor: null, fxCurrency: null, subAccount: null };
+    const mkStmt = (stmtDate: string, seq: string, txnDate: string) => ({
+      bank: 'unionbank' as const, accountRef: '7563', accountLast4: '7563', accountName: 'X',
+      statementDate: stmtDate, periodStart: txnDate, periodEnd: stmtDate, dueDate: null,
+      totals: { previousBalanceMinor: 0, purchasesMinor: 351779, paymentsMinor: 0, totalDueMinor: 351779, minDueMinor: 0 },
+      warnings: [],
+      txns: [
+        {
+          ...base,
+          txnDate,
+          description: `Instalment Principal (${seq}) [9407765]`,
+          merchant: 'Instalment Principal [9407765]',
+          amountMinor: 351779,
+          kind: 'instalment_principal' as const,
+          instalmentRef: '9407765',
+          instalmentSeq: seq,
+        },
+      ],
+    });
+
+    // Month 1: defaults to Installments
+    importStatement(db, u, mkStmt('2026-11-03', '03/12', '2026-11-03'), { sha256: 'm1', filename: 'nov.pdf', storedPath: null });
+    const novTxn = db.query('SELECT id FROM transactions WHERE user_id = ?').get(u) as { id: string };
+    expect(catOf(db, novTxn.id)).toBe('Installments');
+
+    // User labels plan [9407765] as Shopping -> saves merchant_rule
+    const shoppingId = (db.query("SELECT id FROM categories WHERE user_id = ? AND name = 'Shopping'").get(u) as { id: string }).id;
+    const patchRes = await app.request(`/t/${novTxn.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryId: shoppingId }),
+    });
+    expect(patchRes.status).toBe(200);
+    expect(((await patchRes.json()) as { ruleSaved: boolean }).ruleSaved).toBe(true);
+
+    // Month 2: same plan with (04/12) auto-categorizes as Shopping for u, but stays Installments for otherUser
+    importStatement(db, u, mkStmt('2026-12-03', '04/12', '2026-12-03'), { sha256: 'm2', filename: 'dec.pdf', storedPath: null });
+    const decTxn = db.query("SELECT id FROM transactions WHERE user_id = ? AND txn_date = '2026-12-03'").get(u) as { id: string };
+    expect(catOf(db, decTxn.id)).toBe('Shopping');
+
+    importStatement(db, otherUser, mkStmt('2026-12-03', '04/12', '2026-12-03'), { sha256: 'm2-other', filename: 'dec.pdf', storedPath: null });
+    const otherTxn = db.query('SELECT id FROM transactions WHERE user_id = ?').get(otherUser) as { id: string };
+    expect(catOf(db, otherTxn.id)).toBe('Installments');
   });
 
   it('import never overwrites a category the user already set on a re-linked row', async () => {
@@ -268,14 +344,25 @@ describe('PATCH with applyToMerchant', () => {
     expect(catOf(db, b)).toBeNull();
   });
 
-  it('applyToMerchant with a null category clears the whole merchant', async () => {
+  it('saveRule: false updates only the single row without saving a rule', async () => {
+    const { db, app, u, cat } = await setup();
+    const a = addTxn(db, u, 'ONE OFF SHOP');
+    const res = await patch(app, a, { categoryId: cat('Shopping'), saveRule: false });
+    expect(((await res.json()) as { ruleSaved: boolean }).ruleSaved).toBe(false);
+    const ruleCount = (db.query('SELECT COUNT(*) AS n FROM merchant_rules WHERE user_id = ?').get(u) as { n: number }).n;
+    expect(ruleCount).toBe(0);
+  });
+
+  it('applyToMerchant with a null category clears the whole merchant and deletes its rule', async () => {
     const { db, app, u, cat } = await setup();
     const a = addTxn(db, u, 'ZZ UNKNOWN SHOP');
     const b = addTxn(db, u, 'ZZ UNKNOWN SHOP');
     await patch(app, a, { categoryId: cat('Shopping'), applyToMerchant: true });
+    expect((db.query('SELECT COUNT(*) AS n FROM merchant_rules WHERE user_id = ?').get(u) as { n: number }).n).toBe(1);
     await patch(app, a, { categoryId: null, applyToMerchant: true });
     expect(catOf(db, a)).toBeNull();
     expect(catOf(db, b)).toBeNull();
+    expect((db.query('SELECT COUNT(*) AS n FROM merchant_rules WHERE user_id = ?').get(u) as { n: number }).n).toBe(0);
   });
 });
 
@@ -315,7 +402,7 @@ describe('POST /documents/:id/recategorize', () => {
   }
   const call = (app: any, id: string) => app.request(`/d/${id}/recategorize`, { method: 'POST' });
 
-  it('categorizes only that statement\'s uncategorized rows and reports counts', async () => {
+  it('categorizes only that statement\'s uncategorized rows (assigning Others to unknown) and reports counts', async () => {
     const { db, app, u, mkDoc, inDoc } = await setup();
     ensureDefaultCategories(db, u);
     const d1 = mkDoc(u, 'a'), d2 = mkDoc(u, 'b');
@@ -324,10 +411,26 @@ describe('POST /documents/:id/recategorize', () => {
     const elsewhere = inDoc(u, d2, 'GRAB, PASIG CITY, PH');
     const res = await call(app, d1);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ updated: 1, remaining: 1 });
+    expect(await res.json()).toEqual({ updated: 2, remaining: 0 });
     expect(catOf(db, grab)).toBe('Transport');
-    expect(catOf(db, unknown)).toBeNull();
+    expect(catOf(db, unknown)).toBe('Others');
     expect(catOf(db, elsewhere)).toBeNull();
+  });
+
+  it('upgrades Others rows when a user merchant_rule is added', async () => {
+    const { db, app, u, mkDoc, inDoc } = await setup();
+    ensureDefaultCategories(db, u);
+    const { upsertMerchantRule } = await import('./categorize');
+    const d1 = mkDoc(u, 'a');
+    const unknown = inDoc(u, d1, '614 ORMOC, ORMOC, PH');
+    await call(app, d1);
+    expect(catOf(db, unknown)).toBe('Others');
+
+    const foodId = (db.query("SELECT id FROM categories WHERE user_id = ? AND name = 'Food'").get(u) as { id: string }).id;
+    upsertMerchantRule(db, u, '614 ORMOC, ORMOC, PH', foodId);
+    const res = await call(app, d1);
+    expect(await res.json()).toEqual({ updated: 1, remaining: 0 });
+    expect(catOf(db, unknown)).toBe('Food');
   });
 
   it('never overwrites a category the user already set', async () => {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { keepPreviousData } from "@tanstack/react-query";
-import { api, formatPeso } from "@/lib/api";
+import { api, formatFx, formatPeso } from "@/lib/api";
 import type { Txn, TxnQuery, Category } from "@/lib/api";
 import {
   Table,
@@ -126,13 +126,23 @@ export default function Transactions() {
       id,
       categoryId,
       applyToMerchant,
+      saveRule,
     }: {
       id: string;
       categoryId: string | null;
       applyToMerchant?: boolean;
-    }) => api.patchTxn(id, { categoryId, applyToMerchant }),
+      saveRule?: boolean;
+    }) => api.patchTxn(id, { categoryId, applyToMerchant, saveRule }),
     onSuccess: (res) => {
-      if (res.updated && res.updated > 1) toast.success(`Updated ${res.updated} transactions`);
+      if (res.updated && res.updated > 1) {
+        toast.success(
+          res.ruleSaved
+            ? `Updated ${res.updated} transactions and saved rule for future statements`
+            : `Updated ${res.updated} transactions`,
+        );
+      } else if (res.ruleSaved) {
+        toast.success("Category saved for future statements");
+      }
       queryClient.invalidateQueries({ queryKey: ["txns"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
     },
@@ -140,15 +150,34 @@ export default function Transactions() {
 
   /* inline category update, with an offer to apply it to the whole merchant */
   const changeCategory = (txn: Txn, categoryId: string | null) => {
-    const sameMerchant = (data?.items ?? []).filter(
-      (t) => t.id !== txn.id && t.merchant === txn.merchant,
-    ).length;
-    const applyToMerchant =
-      sameMerchant > 0 &&
-      window.confirm(
-        `Apply to all ${sameMerchant + 1} transactions from "${txn.merchant}"?`,
+    const totalForMerchant =
+      txn.merchantCount ??
+      (data?.items ?? []).filter(
+        (t) =>
+          t.merchant === txn.merchant &&
+          t.kind !== "payment" &&
+          t.kind !== "credit",
+      ).length;
+    if (totalForMerchant > 1) {
+      const applyToMerchant = window.confirm(
+        categoryId !== null
+          ? `Apply to all ${totalForMerchant} transactions from "${txn.merchant}" and remember for future statements?`
+          : `Clear category on all ${totalForMerchant} transactions from "${txn.merchant}"?`,
       );
-    categoryMutation.mutate({ id: txn.id, categoryId, applyToMerchant });
+      categoryMutation.mutate({
+        id: txn.id,
+        categoryId,
+        applyToMerchant,
+        saveRule: applyToMerchant,
+      });
+    } else {
+      categoryMutation.mutate({
+        id: txn.id,
+        categoryId,
+        applyToMerchant: false,
+        saveRule: categoryId !== null,
+      });
+    }
   };
 
   /* ── render ────────────────────────────────────────────────────── */
@@ -430,16 +459,9 @@ function TransactionRow({
               {txn.last4 && ` •••• ${txn.last4}`}
             </>
           )}
-          {txn.fxCurrency && txn.fxAmountMinor != null && txn.bank && (
-            <span className="ml-1">
-              {txn.fxCurrency}{" "}
-              {formatPeso(txn.fxAmountMinor).replace("PHP", "").trim()}
-            </span>
-          )}
-          {!txn.bank && txn.fxCurrency && txn.fxAmountMinor != null && (
-            <span>
-              {txn.fxCurrency}{" "}
-              {formatPeso(txn.fxAmountMinor).replace("PHP", "").trim()}
+          {txn.fxCurrency && txn.fxAmountMinor != null && (
+            <span className={txn.bank ? "ml-1" : undefined}>
+              {formatFx(txn.fxAmountMinor, txn.fxCurrency)}
             </span>
           )}
           {instalmentLabel && (
@@ -452,26 +474,30 @@ function TransactionRow({
 
       {/* Category (hidden on narrow) */}
       <TableCell className="hidden sm:table-cell">
-        <Select
-          value={catValue}
-          onValueChange={(v: string | null) => {
-            onCategoryChange(v === "none" ? null : v);
-          }}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="—">
-              {(v: string) => (v === "none" ? "Uncategorized" : (categories.find((c) => c.id === v)?.name ?? v))}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Uncategorized</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isPaymentOrCredit ? (
+          <span className="text-xs text-muted-foreground">Excluded</span>
+        ) : (
+          <Select
+            value={catValue}
+            onValueChange={(v: string | null) => {
+              onCategoryChange(v === "none" ? null : v);
+            }}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="—">
+                {(v: string) => (v === "none" ? "Uncategorized" : (categories.find((c) => c.id === v)?.name ?? v))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Uncategorized</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </TableCell>
 
       {/* Amount */}
@@ -483,6 +509,7 @@ function TransactionRow({
               : ""
           }
         >
+          {showGreen ? "-" : ""}
           {formatPeso(Math.abs(txn.amountMinor))}
           {showGreen && (
             <Badge variant="outline" className="ml-1.5 text-[10px] h-4">
@@ -527,7 +554,8 @@ function TransactionCard({
   onCategoryChange: (categoryId: string | null) => void;
   onDelete: () => void;
 }) {
-  const isCredit = txn.kind === "payment" || txn.kind === "credit" || txn.amountMinor < 0;
+  const isPaymentOrCredit = txn.kind === "payment" || txn.kind === "credit";
+  const isCredit = isPaymentOrCredit || txn.amountMinor < 0;
   const date = new Date(txn.txnDate + "T00:00:00").toLocaleDateString("en-PH", {
     month: "short",
     day: "numeric",
@@ -535,7 +563,7 @@ function TransactionCard({
   });
   const fx =
     txn.fxCurrency && txn.fxAmountMinor != null
-      ? `${txn.fxCurrency} ${formatPeso(txn.fxAmountMinor).replace("PHP", "").trim()}`
+      ? formatFx(txn.fxAmountMinor, txn.fxCurrency)
       : null;
 
   return (
@@ -565,7 +593,7 @@ function TransactionCard({
               isCredit ? "text-green-600 dark:text-green-400" : ""
             }`}
           >
-            {isCredit ? "+" : ""}
+            {isCredit ? "-" : ""}
             {formatPeso(Math.abs(txn.amountMinor))}
           </div>
           {isCredit && (
@@ -576,24 +604,30 @@ function TransactionCard({
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2">
-        <Select
-          value={txn.categoryId ?? "none"}
-          onValueChange={(v: string | null) => onCategoryChange(v === "none" ? null : v)}
-        >
-          <SelectTrigger className="min-w-0 flex-1">
-            <SelectValue placeholder="Category">
-              {(v: string) => (v === "none" ? "Uncategorized" : (categories.find((c) => c.id === v)?.name ?? v))}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Uncategorized</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isPaymentOrCredit ? (
+          <span className="min-w-0 flex-1 text-xs text-muted-foreground">
+            Excluded from spending
+          </span>
+        ) : (
+          <Select
+            value={txn.categoryId ?? "none"}
+            onValueChange={(v: string | null) => onCategoryChange(v === "none" ? null : v)}
+          >
+            <SelectTrigger className="min-w-0 flex-1">
+              <SelectValue placeholder="Category">
+                {(v: string) => (v === "none" ? "Uncategorized" : (categories.find((c) => c.id === v)?.name ?? v))}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Uncategorized</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Button variant="ghost" size="icon" aria-label="Delete transaction" onClick={onDelete}>
           <Trash2 className="size-4 text-destructive" />
         </Button>

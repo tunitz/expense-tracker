@@ -43,6 +43,7 @@ function processDescription(txn: ParsedTxn, description: string): void {
   const seqMatch = description.match(/^\((\d{2}\/\d{2})\)\s+(.+)$/);
   if (seqMatch) {
     txn.instalmentSeq = seqMatch[1]!;
+    txn.kind = 'instalment_principal';
     merchantDesc = seqMatch[2]!;
   }
 
@@ -52,7 +53,7 @@ function processDescription(txn: ParsedTxn, description: string): void {
     txn.kind = 'instalment_principal';
     txn.instalmentSeq = principalMatch[1]!;
     txn.instalmentRef = principalMatch[2]!;
-    txn.merchant = merchantDesc;
+    txn.merchant = `Instalment Principal [${principalMatch[2]!}]`;
     return;
   }
 
@@ -62,7 +63,7 @@ function processDescription(txn: ParsedTxn, description: string): void {
     txn.kind = 'instalment_interest';
     txn.instalmentSeq = interestMatch[1]!;
     txn.instalmentRef = interestMatch[2]!;
-    txn.merchant = merchantDesc;
+    txn.merchant = `Instalment Interest [${interestMatch[2]!}]`;
     return;
   }
 
@@ -148,14 +149,16 @@ export function parseUnionBank(pages: Page[]): ParsedStatement {
   }
   if (!cardLast4) throw new Error('unionbank: missing cardLast4');
 
-  // Account name: single item at x~60, all uppercase letters/spaces, not a known label
+  // Account name: single item in header at x~60, all uppercase letters/spaces, not a known label
   for (const row of allRows) {
     const items = row.items;
-    if (items.length === 1) {
-      const s = items[0]!.s;
+    if (items.some(it => Math.abs(it.x - 47) < 10 && it.s === 'DATE')) break;
+    if (items.length === 1 && Math.abs(items[0]!.x - 60) < 10) {
+      const s = items[0]!.s.trim();
       const noSpaces = s.replace(/\s+/g, '');
       if (/^[A-Z\s]+$/.test(s) && !knownLabelPatterns.has(noSpaces)) {
-        accountName = noSpaces;
+        const isLetterSpaced = /^[A-Z](?:\s[A-Z])+$/.test(s);
+        accountName = isLetterSpaced ? noSpaces : s.replace(/\s+/g, ' ');
       }
     }
   }
@@ -242,8 +245,8 @@ export function parseUnionBank(pages: Page[]): ParsedStatement {
         subAccount: null,
       };
       processDescription(currentTxn, description);
-      // Negative amounts that are still 'purchase' are payments or credits
-      if (currentTxn.amountMinor < 0 && currentTxn.kind === 'purchase') {
+      // Negative amounts are payments or credits
+      if (currentTxn.amountMinor < 0) {
         currentTxn.kind = /payment/i.test(currentTxn.description) ? 'payment' : 'credit';
       }
     } else if (!hasDateItem(items) && currentTxn) {

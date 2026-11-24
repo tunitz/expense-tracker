@@ -163,9 +163,10 @@ export function documentsRoutes(db: Database): Hono<AppEnv> {
       ).n;
     const before = countOpen();
     ensureDefaultCategories(db, userId); // also backfills when it seeds
-    applyCategoriesToUncategorized(db, userId, docId);
+    const fromSeed = before - countOpen();
+    const fromRecat = applyCategoriesToUncategorized(db, userId, docId);
     const remaining = countOpen();
-    return c.json({ updated: before - remaining, remaining });
+    return c.json({ updated: fromSeed + fromRecat, remaining });
   });
 
   app.delete('/:id', (c) => {

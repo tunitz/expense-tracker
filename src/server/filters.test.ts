@@ -35,13 +35,13 @@ describe('Uncategorized filter end to end', () => {
     db.run('INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)', [u, 'f@t.io', 'x', Date.now()]);
     ensureDefaultCategories(db, u);
     const food = (db.query("SELECT id FROM categories WHERE user_id = ? AND name = 'Food'").get(u) as { id: string }).id;
-    const add = (m: string, cat: string | null) =>
+    const add = (m: string, cat: string | null, kind = 'purchase') =>
       db.run(
         `INSERT INTO transactions (id, user_id, source, txn_date, description, merchant, amount_minor, kind, occurrence, created_at, category_id)
-         VALUES (?, ?, 'pdf', '2026-09-01', ?, ?, 100, 'purchase', 1, ?, ?)`,
-        [randomUUID(), u, m, m, Date.now(), cat],
+         VALUES (?, ?, 'pdf', '2026-09-01', ?, ?, 100, ?, 1, ?, ?)`,
+        [randomUUID(), u, m, m, kind, Date.now(), cat],
       );
-    add('A', food); add('B', null); add('C', null);
+    add('A', food); add('B', null); add('C', null); add('PAYMENT', null, 'payment'); add('CREDIT', null, 'credit');
     const app = new Hono<any>();
     app.use('*', async (c, n) => { c.set('user', { id: u, email: 'x' }); await n(); });
     app.route('/t', transactionsRoutes(db));

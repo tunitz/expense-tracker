@@ -1,4 +1,4 @@
-import { ensureDefaultCategories } from '../categorize';
+import { ensureDefaultCategories, upsertMerchantRule, deleteMerchantRule } from '../categorize';
 import { Hono } from 'hono';
 import type { Database } from 'bun:sqlite';
 import type { AppEnv } from '../app';
@@ -45,35 +45,31 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
       params.push(accountId);
     }
 
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const spendConditions = [
+      ...conditions,
+      "t.kind IN ('purchase','fee','interest','instalment_principal','instalment_interest')",
+    ];
+    const spendWhere = `WHERE ${spendConditions.join(' AND ')}`;
 
     // Spend: purchase, fee, interest, instalment_principal, instalment_interest
     // payment and credit are EXCLUDED
     const spendRow = db
       .prepare(
-        `SELECT COALESCE(SUM(CASE
-          WHEN t.kind IN ('purchase','fee','interest','instalment_principal','instalment_interest')
-          THEN t.amount_minor
-          ELSE 0
-        END), 0) AS spend_minor
-         FROM transactions t ${where}`,
+        `SELECT COALESCE(SUM(t.amount_minor), 0) AS spend_minor
+         FROM transactions t ${spendWhere}`,
       )
       .get(...params) as { spend_minor: number };
 
-    // By category
+    // By category (payments and credits excluded so they don't create empty Uncategorized rows)
     const byCategory = db
       .prepare(
         `SELECT t.category_id AS categoryId,
                 COALESCE(c.name, 'Uncategorized') AS name,
                 COALESCE(c.color, '#64748b') AS color,
-                SUM(CASE
-                  WHEN t.kind IN ('purchase','fee','interest','instalment_principal','instalment_interest')
-                  THEN t.amount_minor
-                  ELSE 0
-                END) AS total_minor
+                SUM(t.amount_minor) AS total_minor
          FROM transactions t
          LEFT JOIN categories c ON c.id = t.category_id
-         ${where}
+         ${spendWhere}
          GROUP BY t.category_id
          ORDER BY total_minor DESC`,
       )
@@ -88,12 +84,8 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
     const byMonth = db
       .prepare(
         `SELECT SUBSTR(t.txn_date, 1, 7) AS month,
-                SUM(CASE
-                  WHEN t.kind IN ('purchase','fee','interest','instalment_principal','instalment_interest')
-                  THEN t.amount_minor
-                  ELSE 0
-                END) AS total_minor
-         FROM transactions t ${where}
+                SUM(t.amount_minor) AS total_minor
+         FROM transactions t ${spendWhere}
          GROUP BY month
          ORDER BY month DESC`,
       )
@@ -103,13 +95,9 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
     const byMerchant = db
       .prepare(
         `SELECT t.merchant,
-                SUM(CASE
-                  WHEN t.kind IN ('purchase','fee','interest','instalment_principal','instalment_interest')
-                  THEN t.amount_minor
-                  ELSE 0
-                END) AS total_minor,
+                SUM(t.amount_minor) AS total_minor,
                 COUNT(*) AS cnt
-         FROM transactions t ${where}
+         FROM transactions t ${spendWhere}
          GROUP BY t.merchant
          ORDER BY total_minor DESC
          LIMIT 10`,
@@ -221,7 +209,7 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
       conditions.push('t.category_id = ?');
       params.push(categoryId);
     } else if (categoryId === 'none') {
-      conditions.push('t.category_id IS NULL');
+      conditions.push("t.category_id IS NULL AND t.kind NOT IN ('payment', 'credit')");
     }
     if (q) {
       const escaped = escapeLike(q);
@@ -255,7 +243,13 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
                 t.category_id AS categoryId, c.name AS categoryName,
                 t.notes, t.payment_method AS paymentMethod,
                 t.fx_amount_minor AS fxAmountMinor, t.fx_currency AS fxCurrency,
-                t.instalment_seq AS instalmentSeq
+                t.instalment_seq AS instalmentSeq,
+                (SELECT COUNT(*)
+                 FROM transactions t2
+                 WHERE t2.user_id = t.user_id
+                   AND t2.merchant = t.merchant
+                   AND t2.deleted_at IS NULL
+                   AND t2.kind NOT IN ('payment', 'credit')) AS merchantCount
          FROM transactions t
          LEFT JOIN accounts a ON a.id = t.account_id
          LEFT JOIN categories c ON c.id = t.category_id
@@ -282,6 +276,7 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
         fxAmountMinor: number | null;
         fxCurrency: string | null;
         instalmentSeq: string | null;
+        merchantCount: number;
       }>;
 
     return c.json({
@@ -304,6 +299,7 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
         fxAmountMinor: r.fxAmountMinor,
         fxCurrency: r.fxCurrency,
         instalmentSeq: r.instalmentSeq,
+        merchantCount: r.merchantCount,
       })),
       total: total.cnt,
     });
@@ -395,6 +391,7 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
     const body: {
       categoryId?: string | null;
       applyToMerchant?: boolean;
+      saveRule?: boolean;
       notes?: string | null;
       paymentMethod?: string | null;
       merchant?: string;
@@ -405,9 +402,9 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
     // Check transaction exists and belongs to user
     const txn = db
       .prepare(
-        'SELECT id, source, merchant FROM transactions WHERE id = ? AND user_id = ?',
+        'SELECT id, source, merchant, kind FROM transactions WHERE id = ? AND user_id = ?',
       )
-      .get(txnId, userId) as { id: string; source: string; merchant: string } | undefined;
+      .get(txnId, userId) as { id: string; source: string; merchant: string; kind: string } | undefined;
 
     if (!txn) {
       return c.json({ error: 'not_found' }, 404);
@@ -507,12 +504,23 @@ export function transactionsRoutes(db: Database): Hono<AppEnv> {
       updated += r.changes;
     }
 
+    let ruleSaved = false;
+    const isSpendRow = txn.kind !== 'payment' && txn.kind !== 'credit';
+    if (body.categoryId !== undefined && isSpendRow) {
+      if (body.categoryId !== null && body.saveRule !== false) {
+        upsertMerchantRule(db, userId, txn.merchant, body.categoryId);
+        ruleSaved = true;
+      } else if (body.categoryId === null && (body.applyToMerchant === true || body.saveRule === true)) {
+        deleteMerchantRule(db, userId, txn.merchant);
+      }
+    }
+
     params.push(txnId, userId);
     db.prepare(`UPDATE transactions SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`).run(
       ...params,
     );
 
-    return c.json({ ok: true, updated });
+    return c.json({ ok: true, updated, ruleSaved });
   });
 
   // ── DELETE /:id ──

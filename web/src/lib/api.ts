@@ -63,6 +63,7 @@ export type Txn = {
   fxAmountMinor: number | null;
   fxCurrency: string | null;
   instalmentSeq: string | null;
+  merchantCount?: number;
 };
 
 export type Category = {
@@ -173,6 +174,7 @@ export const api = {
     patch: Partial<{
       categoryId: string | null;
       applyToMerchant: boolean;
+      saveRule: boolean;
       notes: string | null;
       paymentMethod: string | null;
       merchant: string;
@@ -180,7 +182,11 @@ export const api = {
       txnDate: string;
     }>,
   ) {
-    return request<{ ok: boolean; updated?: number }>(`PATCH`, `/api/private/transactions/${id}`, patch);
+    return request<{ ok: boolean; updated?: number; ruleSaved?: boolean }>(
+      `PATCH`,
+      `/api/private/transactions/${id}`,
+      patch,
+    );
   },
 
   async deleteTxn(id: string) {
@@ -258,4 +264,12 @@ export function formatPeso(minor: number): string {
     style: 'currency',
     currency: 'PHP',
   }).format(minor / 100);
+}
+
+export function formatFx(minor: number, currency: string): string {
+  const amount = new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(minor / 100);
+  return `${currency} ${amount}`;
 }

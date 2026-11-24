@@ -1,6 +1,6 @@
 import type { Database } from './db';
 import type { ParsedStatement } from './parsers/types';
-import { categoryForTxn } from './categorize';
+import { loadUserMerchantRules, resolveCategoryIdForTxn } from './categorize';
 
 export type ImportResult = {
   documentId: string;
@@ -73,6 +73,7 @@ export function importStatement(
       const catIds = new Map(
         (db.query('SELECT id, name FROM categories WHERE user_id = ?').all(userId) as { id: string; name: string }[]).map((c) => [c.name, c.id]),
       );
+      const userRules = loadUserMerchantRules(db, userId);
       const setCatStmt = db.prepare('UPDATE transactions SET category_id = ? WHERE id = ?');
 
       for (const t of st.txns) {
@@ -116,8 +117,7 @@ export function importStatement(
             dedupeKey,
             Date.now(),
           );
-          const catName = categoryForTxn({ merchant: t.merchant, kind: t.kind });
-          const catId = catName ? catIds.get(catName) : undefined;
+          const catId = resolveCategoryIdForTxn({ merchant: t.merchant, kind: t.kind }, catIds, userRules);
           if (catId) setCatStmt.run(catId, txnId);
           added++;
         }

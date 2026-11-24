@@ -9,10 +9,51 @@ describe('openDb', () => {
     expect(db2).toBeDefined();
   });
 
-  it('PRAGMA user_version = 1 after open', () => {
+  it('PRAGMA user_version = 2 after open', () => {
     const db = openDb(':memory:');
     const row = db.query('PRAGMA user_version').get() as { user_version: number };
-    expect(row.user_version).toBe(1);
+    expect(row.user_version).toBe(2);
+  });
+
+  it('migrates v1 DB to v2: seeds Installments/Others and normalizes instalment merchants', () => {
+    const tmp = `/tmp/expense-tracker-migrate-${crypto.randomUUID()}.db`;
+    const { Database } = require('bun:sqlite') as typeof import('bun:sqlite');
+    const raw = new Database(tmp);
+    raw.run(`
+      CREATE TABLE users(id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL);
+      CREATE TABLE sessions(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL);
+      CREATE TABLE accounts(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, bank TEXT NOT NULL, name TEXT NOT NULL, last4 TEXT NOT NULL, account_ref TEXT NOT NULL, currency TEXT NOT NULL DEFAULT 'PHP');
+      CREATE TABLE documents(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, account_id TEXT NOT NULL, sha256 TEXT NOT NULL, filename TEXT NOT NULL, statement_date TEXT NOT NULL, period_start TEXT NOT NULL, period_end TEXT NOT NULL, totals_json TEXT NOT NULL, status TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, supersedes_id TEXT, stored_path TEXT, uploaded_at INTEGER NOT NULL);
+      CREATE TABLE categories(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#64748b', UNIQUE(user_id, name));
+      CREATE TABLE merchant_rules(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, pattern TEXT NOT NULL, category_id TEXT NOT NULL, priority INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE transactions(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, account_id TEXT, document_id TEXT, source TEXT NOT NULL, txn_date TEXT NOT NULL, posted_date TEXT, description TEXT NOT NULL, merchant TEXT NOT NULL, amount_minor INTEGER NOT NULL, fx_amount_minor INTEGER, fx_currency TEXT, kind TEXT NOT NULL, instalment_ref TEXT, instalment_seq TEXT, sub_account TEXT, occurrence INTEGER NOT NULL DEFAULT 1, dedupe_key TEXT, category_id TEXT, notes TEXT, payment_method TEXT, deleted_at INTEGER, created_at INTEGER NOT NULL);
+      PRAGMA user_version = 1;
+    `);
+    raw.run('INSERT INTO users VALUES (?, ?, ?, ?)', ['u1', 'u1@test.io', 'h', 1]);
+    raw.run('INSERT INTO categories VALUES (?, ?, ?, ?)', ['c1', 'u1', 'Food', '#f97316']);
+    raw.run(
+      `INSERT INTO transactions (id, user_id, source, txn_date, description, merchant, amount_minor, kind, instalment_ref, instalment_seq, occurrence, created_at)
+       VALUES (?, ?, 'pdf', '2026-10-02', 'Instalment Principal (02/12) [9407765]', 'Instalment Principal (02/12) [9407765]', 351779, 'instalment_principal', '9407765', '02/12', 1, 1)`,
+      ['t1', 'u1'],
+    );
+    raw.close();
+
+    const migrated = openDb(tmp);
+    try {
+      const ver = migrated.query('PRAGMA user_version').get() as { user_version: number };
+      expect(ver.user_version).toBe(2);
+      const cats = (migrated.query('SELECT name FROM categories WHERE user_id = ? ORDER BY name').all('u1') as { name: string }[]).map((r) => r.name);
+      expect(cats).toEqual(['Food', 'Installments', 'Others']);
+      const txn = migrated.query('SELECT merchant, description FROM transactions WHERE id = ?').get('t1') as { merchant: string; description: string };
+      expect(txn.merchant).toBe('Instalment Principal [9407765]');
+      expect(txn.description).toBe('Instalment Principal (02/12) [9407765]');
+    } finally {
+      migrated.close();
+      const { unlinkSync } = require('node:fs') as typeof import('node:fs');
+      for (const suffix of ['', '-wal', '-shm']) {
+        try { unlinkSync(tmp + suffix); } catch {}
+      }
+    }
   });
 
   it('all expected tables exist', () => {

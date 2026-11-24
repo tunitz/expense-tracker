@@ -88,10 +88,16 @@ CREATE TABLE transactions(
 );
 
 CREATE UNIQUE INDEX uq_txn_dedupe ON transactions(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL;
+CREATE UNIQUE INDEX uq_merchant_rules_user_pattern ON merchant_rules(user_id, pattern);
 CREATE INDEX ix_txn_user_date ON transactions(user_id, txn_date);
 CREATE INDEX ix_txn_user_cat ON transactions(user_id, category_id);
 CREATE INDEX ix_txn_doc ON transactions(document_id);
 `;
+
+const V2_EXTRA_CATEGORIES: { name: string; color: string }[] = [
+  { name: 'Installments', color: '#14b8a6' },
+  { name: 'Others', color: '#78716c' },
+];
 
 export function openDb(path: string): Database {
   const db = new Database(path);
@@ -111,7 +117,51 @@ export function openDb(path: string): Database {
   if (userVersion === 0) {
     db.run('BEGIN');
     db.run(SCHEMA);
-    db.run('PRAGMA user_version = 1');
+    db.run('PRAGMA user_version = 2');
+    db.run('COMMIT');
+  } else if (userVersion < 2) {
+    db.run('BEGIN');
+    db.run(
+      `DELETE FROM merchant_rules
+       WHERE rowid NOT IN (
+         SELECT MAX(rowid) FROM merchant_rules GROUP BY user_id, pattern
+       )`,
+    );
+    db.run(
+      'CREATE UNIQUE INDEX IF NOT EXISTS uq_merchant_rules_user_pattern ON merchant_rules(user_id, pattern)',
+    );
+
+    // Seed newly added default categories once for existing users who already have categories.
+    const existingUsers = db
+      .query('SELECT DISTINCT user_id FROM categories')
+      .all() as { user_id: string }[];
+    const insCat = db.prepare(
+      'INSERT OR IGNORE INTO categories (id, user_id, name, color) VALUES (?, ?, ?, ?)',
+    );
+    for (const { user_id } of existingUsers) {
+      for (const c of V2_EXTRA_CATEGORIES) {
+        insCat.run(crypto.randomUUID(), user_id, c.name, c.color);
+      }
+    }
+
+    // Strip monthly sequence counters from stored UnionBank instalment merchant labels so rules match across cycles.
+    const instRows = db
+      .query(
+        "SELECT id, merchant FROM transactions WHERE kind IN ('instalment_principal', 'instalment_interest')",
+      )
+      .all() as { id: string; merchant: string }[];
+    const updMerchant = db.prepare('UPDATE transactions SET merchant = ? WHERE id = ?');
+    for (const r of instRows) {
+      const normalized = r.merchant.replace(
+        /^(Instalment (?:Principal|Interest))\s+\(\d{2}\/\d{2}\)\s*(\[\d+\])$/,
+        '$1 $2',
+      );
+      if (normalized !== r.merchant) {
+        updMerchant.run(normalized, r.id);
+      }
+    }
+
+    db.run('PRAGMA user_version = 2');
     db.run('COMMIT');
   }
 
