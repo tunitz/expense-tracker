@@ -199,21 +199,29 @@ export function parseBpi(pages: Page[]): ParsedStatement {
     const leftItems = row.items.filter(it => it.x < 250);
     if (leftItems.length === 0) continue;
 
-    for (const it of leftItems) {
+    // Strip rotated/left-margin spool metadata (e.g. "SOAALL_NOV1326_A 44337", "BPICC_...", or isolated spool digits)
+    const nameItems = leftItems.filter(it => {
       const s = it.s.trim();
-      if (/^(Prepared for|Reference No)/i.test(s)) {
-        sawPreparedHeader = true;
-        continue;
-      }
-      if (isBoilerplateName(s)) continue;
-      if (sawPreparedHeader || (it.x >= 20 && it.x <= 80)) {
-        if (/[A-Za-z]{2,}/.test(s)) {
-          accountName = s;
-          break;
-        }
+      if (!s) return false;
+      if (/^(BPICC|SOAALL)/i.test(s)) return false;
+      if (it.x < 32 && /^\d+$/.test(s)) return false;
+      return true;
+    });
+    if (nameItems.length === 0) continue;
+
+    const candidate = joinItems(nameItems);
+    if (/^(Prepared\s+for|Reference\s+No)/i.test(candidate)) {
+      sawPreparedHeader = true;
+      continue;
+    }
+    if (isBoilerplateName(candidate)) continue;
+    const firstX = nameItems[0]!.x;
+    if (sawPreparedHeader || (firstX >= 20 && firstX <= 80)) {
+      if (/[A-Za-z]{2,}/.test(candidate)) {
+        accountName = candidate;
+        break;
       }
     }
-    if (accountName) break;
   }
 
   // 2. Fallback: cardholder line on transaction pages ("548809-3-70-7335902 - LIPTON D ABILLAR")
@@ -257,11 +265,11 @@ export function parseBpi(pages: Page[]): ParsedStatement {
   for (const row of allRows) {
     const labelItem = row.items.find(it => it.x < 120 && /^total\b/i.test(it.s.trim()));
     if (!labelItem) continue;
-    // Skip "Total Outstanding Balance" or "Total Amount Due"
-    if (/^total\s+[a-z]/i.test(labelItem.s.trim())) continue;
 
     const afterItems = row.items.filter(it => it.x >= labelItem.x);
     const rowText = joinItems(afterItems);
+    // Skip "Total Outstanding Balance" or "Total Amount Due"
+    if (/^total\s+[a-z]/i.test(rowText)) continue;
     const afterTotal = rowText.replace(/^total\b/i, '').trim();
     const amounts = [...afterTotal.matchAll(AMOUNT_GLOBAL_RE)].map(m => m[0]);
     if (amounts.length >= 3) {
@@ -293,7 +301,7 @@ export function parseBpi(pages: Page[]): ParsedStatement {
     const rowText = joinItems(items);
 
     // Sub-account headers (e.g. "BPI REWARDS CARD", "BPI ECREDIT CARD")
-    const leftUpperItems = items.filter(it => it.x < 150);
+    const leftUpperItems = items.filter(it => it.x < 200);
     const leftText = joinItems(leftUpperItems);
     if (leftText.includes('REWARDS') || leftText.includes('ECREDIT')) {
       if (leftText.includes('REWARDS')) subAccount = 'rewards';

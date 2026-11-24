@@ -90,6 +90,7 @@ export function documentsRoutes(db: Database): Hono<AppEnv> {
     const sha256 = hasher.digest('hex');
 
     try {
+      ensureDefaultCategories(db, userId);
       const result = importStatement(db, userId, statement, {
         sha256,
         filename: file.name,

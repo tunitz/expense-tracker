@@ -94,6 +94,8 @@ describe('categoryForTxn', () => {
 
   it('merchant 0% instalment rows still match their merchant category', () => {
     expect(categoryForTxn({ merchant: 'POWER MAC ROB CEBU', kind: 'instalment_principal' })).toBe('Shopping');
+    expect(categoryForTxn({ merchant: 'Powermac-Robinson Ormo Le', kind: 'instalment_principal' })).toBe('Shopping');
+    expect(categoryForTxn({ merchant: 'Lazada Ph_O-Ecipp 3m Z Bo', kind: 'instalment_principal' })).toBe('Shopping');
     expect(categoryForTxn({ merchant: 'ABENSON-TACLOBAN', kind: 'instalment_principal' })).toBe('Shopping');
   });
 
