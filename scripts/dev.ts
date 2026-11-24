@@ -15,7 +15,7 @@ process.on('SIGTERM', stop);
 try {
   const stdio: ['inherit', 'inherit', 'inherit'] = ['inherit', 'inherit', 'inherit'];
   children.push(Bun.spawn([process.execPath, '--watch', 'src/server/main.ts'], { cwd: root, stdio }));
-  children.push(Bun.spawn([process.execPath, 'node_modules/vite/bin/vite.js'], { cwd: web, stdio }));
+  children.push(Bun.spawn([process.execPath, 'run', 'dev.ts'], { cwd: web, stdio }));
   const exitCode = await Promise.race(children.map(child => child.exited));
   process.exitCode = stopping ? 0 : exitCode;
 } finally {

@@ -1,10 +1,18 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-createRoot(document.getElementById('root')!).render(
+const elem = document.getElementById('root')!
+const app = (
   <StrictMode>
     <App />
-  </StrictMode>,
+  </StrictMode>
 )
+
+if (import.meta.hot) {
+  const data = import.meta.hot.data as { root?: Root }
+  ;(data.root ??= createRoot(elem)).render(app)
+} else {
+  createRoot(elem).render(app)
+}

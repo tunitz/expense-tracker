@@ -20,7 +20,7 @@ export function buildServer(db: Database, opts: { webDir: string }): Hono<AppEnv
     c.header('Referrer-Policy', 'same-origin');
     c.header(
       'Content-Security-Policy',
-      "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     );
     if (process.env.COOKIE_SECURE === '1') {
       c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');

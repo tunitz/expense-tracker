@@ -1,10 +1,10 @@
 # Expense Tracker
 
-A personal expense tracker built with Bun + Hono (API) and React/Vite (web app). Import credit-card statement PDFs (BPI and UnionBank parsers, password-protected PDFs supported) or enter transactions manually. Amounts are stored in minor units (centavos); all currency is PHP.
+A personal expense tracker built with Bun + Hono (API) and React bundled with Bun (web app). Import credit-card statement PDFs (BPI and UnionBank parsers, password-protected PDFs supported) or enter transactions manually. Amounts are stored in minor units (centavos); all currency is PHP.
 
 ## Quick Start (Bun)
 
-From the repo root, install dependencies and start the API and Vite together:
+From the repo root, install dependencies and start the API and web dev server together:
 
 ```bash
 bun install --frozen-lockfile
@@ -12,8 +12,8 @@ bun install --cwd web --frozen-lockfile
 bun run dev
 ```
 
-Open http://localhost:5173 (or the URL Vite prints). Vite proxies `/api`
-to the Bun server on port 3020 by default.
+Open http://localhost:3000 (or the URL printed on startup). The Bun web dev
+server proxies `/api` to the API server on port 3020 by default.
 
 ## Production with Bun
 
@@ -41,6 +41,7 @@ The default host port is 3020. Data persists in the named volume
 ## Configuration
 
 - `PORT` — API listen port (default `3020`)
+- `WEB_PORT` — Web dev server listen port (default `3000`)
 - `DATA_DIR` — Directory for `app.db` (default `./data`)
 - `WEB_DIR` — Static web assets path (default `./web/dist`; relative paths work)
 - `ALLOW_SIGNUP` — Set to `0` to disable user registration; any other value allows it
@@ -57,7 +58,7 @@ The default host port is 3020. Data persists in the named volume
   - `parsers/bpi.ts` — BPI PDF statement parser
   - `parsers/unionbank.ts` — UnionBank PDF statement parser
   - `main.ts` — entry point
-- `web/` — Vite React frontend (own `package.json`)
+- `web/` — React frontend bundled with Bun (own `package.json`)
 - `Dockerfile` — container image definition
 - `docker-compose.yml` — compose configuration
 
