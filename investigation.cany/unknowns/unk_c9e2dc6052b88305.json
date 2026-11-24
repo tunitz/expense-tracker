@@ -1,0 +1,17 @@
+{
+  "id": "unk_c9e2dc6052b88305",
+  "revision": 2,
+  "question": "The person pasted a brand-new Pi command with token et_daf602c… and says it is 'still failing'. Where did that token come from, and which token is authoritative so Pi connects?",
+  "severity": "critical",
+  "domain": "mcp-auth",
+  "status": "resolved",
+  "probes": [
+    "POST /mcp with et_daf602c… vs data/mcp.json token and compare HTTP status",
+    "Run pi mcp list to reproduce the exact error",
+    "Grep the machine for where et_daf602c… is configured",
+    "Set Pi to the token the server accepts and re-run pi mcp list"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "The token in the person's pasted command (et_daf602c...) is a stale token: it came from their clipboard/shell history, not from the running server. Verified by curl: POST /mcp with et_daf602c returns HTTP 401 Invalid or missing bearer token, while the token in data/mcp.json (et_401e...) returns HTTP 200 and the unauthenticated call also returns 401. `pi mcp list` reproduced the person's exact error. Fixed by running `pi mcp add expense-tracker --url http://127.0.0.1:3020/mcp --header \"Authorization=Bearer et_401e...\"`, which replaced the entry in ~/.pi/agent/mcp.json. Verified: `pi mcp list` reports 'connected, 6 tools' with errors: [], a real tools/call get_summary returns isError:false, OpenCode's own expense-tracker tools also respond, and rebuild_check passes (cargo build + cargo test). Remaining limit: the listening PID 952863 started 04:54 UTC but target/debug/expense-tracker was rebuilt 05:46 UTC with 7 tools (update_transaction), so the live process serves only 6 tools; a restart/redeploy is needed and was not done because long-running processes are not started here. Recurring trap: regenerating or copying another token will desync the harness config again."
+}

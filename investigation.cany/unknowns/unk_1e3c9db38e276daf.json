@@ -1,0 +1,15 @@
+{
+  "id": "unk_1e3c9db38e276daf",
+  "revision": 2,
+  "question": "Are the exact install-command flags for Codex, Claude Code, OpenCode and Pi correct for the current versions of those harnesses?",
+  "severity": "low",
+  "domain": "mcp-install-commands",
+  "status": "resolved",
+  "probes": [
+    "Web lookup of each harness's official MCP install docs (web search unavailable in this session)",
+    "Ask the person which version of each harness they use"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "Partly settled: opencode and pi are installed here, and their exact remote-server flags were read from `opencode mcp add --help` and `pi mcp add --help` (both take --url and --header KEY=VALUE, opencode also --global). Codex and Claude Code are not installed and web search was cancelled, so their snippets use the well-known documented forms (--bearer-token-env-var for Codex; --transport http plus --header for Claude Code) and remain an estimate until a harness or docs can confirm them."
+}

@@ -1,0 +1,16 @@
+{
+  "id": "unk_0c0fd00dbec3113c",
+  "revision": 3,
+  "question": "What does the person mean by 'it's still failed' — which build or check is failing right now?",
+  "severity": "high",
+  "domain": "build",
+  "status": "resolved",
+  "probes": [
+    "Run rebuild_check and read its failure list",
+    "Run cargo build/test and the web build",
+    "Compare the frontend tool list with the Rust tool list"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "The 6-vs-7 tool gap was a stale running binary, not a build failure. At 06:12 UTC the old port-3020 process (PID 952863, exe marked deleted) was stopped and the current binary was started detached as PID 994284. Verified: exe is no longer '(deleted)', health returns {ok:true}, POST /mcp tools/list returns 7 tools including update_transaction, and the Code Mode expense-tracker tools list 8 categories and a working summary. Rebuild check still passes. The stale-process limit no longer applies until another rebuild happens without a restart."
+}

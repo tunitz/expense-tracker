@@ -75,7 +75,8 @@ export function documentsRoutes(db: Database): Hono<AppEnv> {
     if (!statement) {
       try {
         statement = parseBpi(pages);
-      } catch {
+      } catch (err) {
+        console.error('Failed to parse statement:', err instanceof Error ? err.message : err);
         return c.json({ error: 'unsupported_format' }, 422);
       }
     }

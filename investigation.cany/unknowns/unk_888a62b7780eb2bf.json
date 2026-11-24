@@ -1,0 +1,16 @@
+{
+  "id": "unk_888a62b7780eb2bf",
+  "revision": 4,
+  "question": "Why did creating an account return 405 in the preview, and can sign-up work there?",
+  "severity": "high",
+  "domain": "preview",
+  "status": "resolved",
+  "probes": [
+    "Read Craft Anything's project_preview/project_play implementation",
+    "POST /api/auth/register to the live Rust server and compare",
+    "Open the static preview in a browser and submit the create-account form"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "Superseded by the current build: sign-up and all screens work in the static install, and statement PDFs are now genuinely parsed there too (unpdf/pdfjs + the project's BPI/UnionBank logic), so the old limitation that uploads were only recorded as documents no longer applies. The Rust server path is unchanged and remains the shared-data deployment. Verified by the full local import test, web build, cargo tests and rebuild_check."
+}

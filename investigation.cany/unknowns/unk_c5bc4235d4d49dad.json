@@ -1,0 +1,16 @@
+{
+  "id": "unk_c5bc4235d4d49dad",
+  "revision": 3,
+  "question": "Why can't the person upload and parse statements in the preview, and how can they test it?",
+  "severity": "high",
+  "domain": "preview",
+  "status": "resolved",
+  "probes": [
+    "Read the browser-only fallback (upload only records a document, added 0, preview notice) and the real server upload path",
+    "Run a standalone logic test of the new sample action: add, list, summary, recategorize, delete",
+    "Verify the built screens contain the new action and run rebuild_check"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "Superseded: the preview-only generated 'Load sample statement' was removed at the person's explicit request ('NOT A PREVIEW REWRITE'). Replaced by 'Read example statement', which fetches a real bundled BPI-format PDF and parses it with the same engine as uploads — real rows, totals and categories. The bundled example was verified to parse to two correct transactions, with duplicate rejection and full summary/category flow, plus web build, cargo tests and rebuild_check."
+}

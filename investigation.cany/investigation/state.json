@@ -1,0 +1,43 @@
+{
+  "revision": 67,
+  "brief": {
+    "question": "The Rust rewrite of the expense tracker is finished, but the app actually running on this machine is still an older build. The person asked to restart the app. Restart it on the current build, keep its data and access token, and verify the newest assistant tool is live.",
+    "purpose": "Make the running app match the finished Rust build so the assistant connection exposes the newest tools and fixes, without losing data or breaking configuration.",
+    "targets": [
+      "/home/tunitz/Projects/expense-tracker/"
+    ],
+    "constraints": [
+      "Work in place; only project files plus the harness MCP config that holds the token",
+      "Keep the Rust Axum/SQLite + React/Vite architecture",
+      "The person explicitly asked to restart the app, so starting the app binary as a detached process is in scope this turn (no dev server, watcher or build loop)",
+      "Do not touch Craft Anything records or the live database; preserve the existing token and categories"
+    ],
+    "done_when": "A fresh process on port 3020 runs the current binary; health and POST /mcp answer; tools/list includes update_transaction; categories and account are intact; rebuild_check passes."
+  },
+  "plan": [
+    {
+      "title": "Confirm the Rust rewrite still builds and tests clean",
+      "status": "done",
+      "why": "cargo build + cargo test pass; 20 tests green."
+    },
+    {
+      "title": "Run Craft Anything's final check",
+      "status": "done",
+      "why": "rebuild_check passed build and own-tests."
+    },
+    {
+      "title": "Create a feature branch for the rewrite work",
+      "status": "done",
+      "why": "Switched from main to feature/rust-rewrite."
+    },
+    {
+      "title": "Commit only the project files and verify",
+      "status": "done",
+      "why": "44 project files committed as 0a69499; Craft Anything records intentionally left untracked."
+    }
+  ],
+  "hypotheses": [],
+  "findings": [],
+  "handoff": "Turn summary (2026-11-19, current turn): The person asked to 'commit all your changes to a feature branch'. The Rust rewrite was already complete on main but uncommitted. Created branch feature/rust-rewrite, set a local commit identity (Craft Anything Builder), staged only the 44 project files (Cargo.toml/lock, src/** Rust engine, web/** frontend changes, Dockerfile/compose/README, .gitignore) and committed as 0a69499 'Rewrite the backend in Rust with full feature parity'. Verified: on feature/rust-rewrite, working tree clean except Craft Anything's own records, which were deliberately NOT committed (craft.json, feed.json, inbox/, investigation.cany/, capture/, pinned/, usage.json, build-activity.log, .playwright-cli/). rebuild_check passes (cargo build + cargo test, 20 tests). No code changed this turn, so the running server is unaffected. Traps: (1) never commit/stage the Craft Anything record files listed above; (2) unk_63e248599e6466d5 (PDF text parity on real BPI/UnionBank statements) is BLOCKED - no real fixture exists, do not retry; settle only if the person supplies a real statement; (3) the previous handoff's details about the port-3020 restart and Pi token are from the prior turn - re-verify before relying on them; (4) any future cargo rebuild makes the running binary stale until the app is restarted.",
+  "updated": "2026-11-19T07:15:51Z"
+}

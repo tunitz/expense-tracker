@@ -1,0 +1,14 @@
+{
+  "id": "unk_28c88d9dd6f5fea8",
+  "revision": 2,
+  "question": "Does 'fully rewritten into Rust' include the browser screens (React frontend), or only the behind-the-scenes engine (API/parsers/database)?",
+  "severity": "high",
+  "domain": "scope",
+  "status": "resolved",
+  "probes": [
+    "Ask the person with core_person_ask, offering: Rust engine only + keep screens; Rust engine + Rust-built screens; Rust engine + simpler built-in screens"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "Decided by the builder (person asked me to decide): rewrite the whole server engine in Rust; keep the existing browser screens unchanged, since the browser is part of the app's architecture and a faithful visual rebuild requires keeping them. Rust cannot run directly in a browser; a Rust/WASM rewrite would change the look and break likeness."
+}

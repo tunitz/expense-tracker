@@ -1,0 +1,15 @@
+{
+  "id": "unk_ab5aba2c879105a3",
+  "revision": 2,
+  "question": "Is the expense data the person expects the AI to see stored in the browser (localStorage in Open mode) rather than in the server database the MCP reads?",
+  "severity": "high",
+  "domain": "mcp-data",
+  "status": "resolved",
+  "probes": [
+    "Ask the person with core_person_ask: start fresh vs migrate existing browser data",
+    "Check whether the browser app has any server-sync/export path"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "Decided by the builder (person asked me to decide): no real expense data exists anywhere — the server DB at data/app.db has 0 of everything, and the only populated copy is a throwaway smoke-test DB in /tmp/opencode/et-smoke. So there is nothing to migrate. The fix is to make the MCP self-sufficient on a fresh database: it auto-creates a dedicated helper account (plus default categories) on first use, prefers a real registered account if one is later created, and read tools return honest empty results instead of an error. The browser's 'Open' mode still stores data only in localStorage; moving that into the server remains a separate follow-up, stated openly rather than dropped."
+}

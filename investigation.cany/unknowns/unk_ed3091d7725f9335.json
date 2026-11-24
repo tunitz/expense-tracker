@@ -1,0 +1,15 @@
+{
+  "id": "unk_ed3091d7725f9335",
+  "revision": 2,
+  "question": "The note 'also add to the too update_transaction' is slightly garbled: does it mean add an MCP tool named update_transaction?",
+  "severity": "low",
+  "domain": "scope",
+  "status": "resolved",
+  "probes": [
+    "Read the existing MCP tool list and the person's earlier request for MCP tools",
+    "Check whether any update tool already exists"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "Interpreted as: add a seventh MCP tool named update_transaction, alongside add_transaction and delete_transaction. Nothing else fits the conversation (the person has been adding AI-harness tools) and no update tool exists yet. Easy to redirect if they meant something else."
+}

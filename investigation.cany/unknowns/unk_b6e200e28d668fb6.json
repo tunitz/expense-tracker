@@ -1,0 +1,16 @@
+{
+  "id": "unk_b6e200e28d668fb6",
+  "revision": 3,
+  "question": "Why does Pi report 'MCP HTTP request failed with status 405' at http://127.0.0.1:3020/mcp?",
+  "severity": "high",
+  "domain": "mcp",
+  "status": "resolved",
+  "probes": [
+    "Curl GET and POST /mcp on the live port-3020 server and read its allow header",
+    "Inspect the listening process, its start time and whether its executable was replaced",
+    "Read Pi's streamable-HTTP transport to see which method tolerates 405"
+  ],
+  "evidence_for": [],
+  "evidence_against": [],
+  "resolution": "FIXED THIS TURN: the stale process on port 3020 was replaced by a fresh start of the current binary, and data/mcp.json was written with enabled=true and the exact bearer token already present in Pi's ~/.pi/agent/mcp.json. Verified by curl: POST /mcp now returns 200 JSON-RPC for initialize, tools/list (all 6 tools) and tools/call; a wrong token returns 401; /api/health returns ok. GET /mcp still returns 405 by design and is tolerated. No source change was needed — the route was already correct."
+}
