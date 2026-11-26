@@ -1,0 +1,9 @@
+# Local source build override for Compose:
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+
+services:
+  expense-tracker:
+    build:
+      context: .
+      target: runtime
+    image: expense-tracker:local

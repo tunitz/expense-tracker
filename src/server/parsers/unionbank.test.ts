@@ -1,14 +1,16 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { parseUnionBank } from './unionbank';
 import type { Page } from './types';
 
-const fixturePath = Bun.resolveSync('../../../../fixtures/private/unionbank.rows.json', import.meta.url);
+const fixturePath = join(process.cwd(), 'fixtures/private/unionbank.rows.json');
+const hasFixture = existsSync(fixturePath);
+const stmt = hasFixture
+  ? parseUnionBank(JSON.parse(readFileSync(fixturePath, 'utf-8')) as Page[])
+  : (undefined as unknown as ReturnType<typeof parseUnionBank>);
 
-const raw = await Bun.file(fixturePath).text();
-const pages = JSON.parse(raw) as Page[];
-const stmt = parseUnionBank(pages);
-
-describe('parseUnionBank', () => {
+describe.skipIf(!hasFixture)('parseUnionBank', () => {
   test('accountLast4', () => {
     expect(stmt.accountLast4).toBe('7563');
   });

@@ -1,13 +1,16 @@
 import { describe, expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import { parseBpi } from './bpi';
 import type { Page } from './types';
 
-const fixturePath = Bun.resolveSync('../../../../fixtures/private/bpi.rows.json', import.meta.url);
-const raw = await Bun.file(fixturePath).text();
-const pages = JSON.parse(raw) as Page[];
-const stmt = parseBpi(pages);
+const fixturePath = join(process.cwd(), 'fixtures/private/bpi.rows.json');
+const hasFixture = existsSync(fixturePath);
+const stmt = hasFixture
+  ? parseBpi(JSON.parse(readFileSync(fixturePath, 'utf-8')) as Page[])
+  : (undefined as unknown as ReturnType<typeof parseBpi>);
 
-describe('parseBpi', () => {
+describe.skipIf(!hasFixture)('parseBpi', () => {
   test('accountLast4', () => {
     expect(stmt.accountLast4).toBe('2118');
   });

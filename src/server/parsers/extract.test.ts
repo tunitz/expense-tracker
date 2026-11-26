@@ -1,11 +1,12 @@
 import { describe, expect, it, test } from 'bun:test';
 import { readFileSync } from 'fs';
+import { join } from 'path';
 import { extractPages, PdfPasswordError } from './extract';
 import { parseUnionBank } from './unionbank';
 import { parseBpi } from './bpi';
 
-const UNIONBANK_PATH = '/home/tunitz/projects/expense-tracker/fixtures/private/unionbank.pdf';
-const BPI_PATH = '/home/tunitz/projects/expense-tracker/fixtures/private/bpi.pdf';
+const UNIONBANK_PATH = join(process.cwd(), 'fixtures/private/unionbank.pdf');
+const BPI_PATH = join(process.cwd(), 'fixtures/private/bpi.pdf');
 
 function load(path: string): Uint8Array | null {
   try {
