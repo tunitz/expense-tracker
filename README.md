@@ -8,6 +8,23 @@ A self-hosted personal expense tracker built with **Bun + Hono** (API & SQLite s
 - **Authentication & session hardening:** Argon2id password hashing, SHA-256 hashed session tokens in `HttpOnly` `SameSite=Lax` cookies, per-IP and per-account login rate limiting, optional `ALLOW_SIGNUP=0` lockdown, and CSP / `X-Frame-Options` / `X-Content-Type-Options` / conditional HSTS headers.
 - **In-memory PDF statement import:** Supports BPI and UnionBank credit-card statements up to 15 MB and 50 pages without storing raw PDFs on disk, handles password-protected PDFs (`423`), deduplicates repeated uploads (`409`), and auto-categorizes transactions with customizable merchant rules.
 
+## Screenshots
+
+### Overview Dashboard
+Monthly spending trend, category breakdown, and top merchants.
+
+![Overview dashboard](docs/screenshots/overview.png)
+
+### Spending & Categorization
+Searchable and filterable transaction list with inline category editing, merchant rules, and manual expense entry.
+
+![Transactions and categorization](docs/screenshots/transactions.png)
+
+### Statement Imports
+Uploaded BPI and UnionBank PDF statements with billing periods, parsing status, and re-categorization.
+
+![Imported PDF statements](docs/screenshots/documents.png)
+
 ---
 
 ## Docker Deployment (Recommended)
@@ -136,6 +153,7 @@ See [`.env.example`](.env.example) for a ready-to-copy template.
 - `web/` — React frontend and Bun build/dev scripts (`web/build.ts`, `web/dev.ts`)
 - `rust/statement-cp037/` — Optional native Rust N-API CP037 decoder (see [rust/statement-cp037/README.md](rust/statement-cp037/README.md))
 - `scripts/` — Dev runner, native build helper, and synthetic statement profiler
+- `docs/screenshots/` — Application UI screenshots for documentation
 - `Dockerfile` — Multi-stage `oven/bun:1-alpine` production image definition
 - `compose.yaml` — Production Compose configuration (GHCR image)
 - `compose.dev.yaml` — Local source build Compose override

@@ -13,6 +13,7 @@ fixtures
 src/server/**/*.test.ts
 *.md
 LICENSE
+docs
 .env
 .env.*
 *.log
