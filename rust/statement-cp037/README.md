@@ -1,28 +1,23 @@
-# Statement CP037 decoder
+# Statement CP037 Decoder
 
-This N-API addon decodes a whole statement in one call, preserving JavaScript's
-UTF-16 code-unit semantics (including lone surrogates). PDF extraction, bank
-parsing, and the decision to decode remain in TypeScript.
+Optional N-API native addon that decodes EBCDIC CP037 statement text in one call while preserving JavaScript UTF-16 code-unit semantics (including lone surrogates). PDF extraction, bank parsing, and encoding detection remain in TypeScript (`src/server/parsers/statement-encoding.ts`).
 
-From the repository root:
+## Building Locally
 
-```sh
-crate=rust/statement-cp037
-rust-anything build "$crate"
+Requires Rust `1.97+` (`cargo`) and Bun:
+
+```bash
+bun run build:native
 bun test src/server/parsers/statement-encoding.test.ts
-
-node --input-type=module - > /tmp/expense-cp037-inputs.jsonl <<'JS'
-const bytes = Array.from({ length: 256 }, (_, i) => String.fromCharCode(i)).join('');
-const marker = '\xe2\xa3\x81\xa3\x85\x94\x85\x95\xa3';
-for (const input of [bytes, { $utf16: [0xd800, 0, 0xdcff] }, marker, ('SAMPLE COFFEE 💳 ' + marker).repeat(500)]) {
-  console.log(JSON.stringify({ fn: 'decodeCp037', args: [input] }));
-}
-JS
-rust-anything record "$crate" --count 200 --inputs /tmp/expense-cp037-inputs.jsonl
-rust-anything gate "$crate"
-rust-anything bench "$crate"
 ```
 
-The app uses TypeScript when the addon is absent or when
-`EXPENSE_CP037_MODE=js` is set. `bun run dev` and `bun run start` build the
-addon with Cargo; the Docker image also includes it.
+Or build the crate directly with Cargo:
+
+```bash
+cargo build --release --locked --manifest-path rust/statement-cp037/Cargo.toml
+```
+
+## JS Fallback & Docker Runtime
+
+- The server automatically falls back to the pure TypeScript implementation (`src/server/parsers/cp037.ts`) when `statement_cp037.node` is not built or when `EXPENSE_CP037_MODE=js` is set.
+- The production `oven/bun:1-alpine` Docker image runs with `EXPENSE_CP037_MODE=js` so it stays small and builds cleanly across `linux/amd64` and `linux/arm64` without a Rust/musl native build stage.

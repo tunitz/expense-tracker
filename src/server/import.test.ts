@@ -4,7 +4,7 @@ import { importStatement, DuplicateDocumentError } from './import';
 import { extractPages } from './parsers/extract';
 import { parseUnionBank } from './parsers/unionbank';
 import type { ParsedStatement, ParsedTxn, TxnKind } from './parsers/types';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ─── Hand-crafted fixture ────────────────────────────────────────────
@@ -141,9 +141,11 @@ test('second user importing same statement gets own rows (isolation)', () => {
   expect(c2.c).toBe(4);
 });
 
-test('real unionbank fixture: added 91, skipped 0', async () => {
-  const pdfPath = join(process.cwd(), 'fixtures/private/unionbank.pdf');
-  const pdfData = readFileSync(pdfPath);
+const unionbankPdfPath = join(process.cwd(), 'fixtures/private/unionbank.pdf');
+const hasUnionbankPdf = existsSync(unionbankPdfPath);
+
+test.skipIf(!hasUnionbankPdf)('real unionbank fixture: added 91, skipped 0', async () => {
+  const pdfData = readFileSync(unionbankPdfPath);
   const pages = await extractPages(new Uint8Array(pdfData), '486911');
   const parsed = parseUnionBank(pages);
 
@@ -157,9 +159,8 @@ test('real unionbank fixture: added 91, skipped 0', async () => {
   expect(result.skipped).toBe(0);
 });
 
-test('re-import real fixture with different sha256: added 0, skipped 91, version 2', async () => {
-  const pdfPath = join(process.cwd(), 'fixtures/private/unionbank.pdf');
-  const pdfData = readFileSync(pdfPath);
+test.skipIf(!hasUnionbankPdf)('re-import real fixture with different sha256: added 0, skipped 91, version 2', async () => {
+  const pdfData = readFileSync(unionbankPdfPath);
   const pages = await extractPages(new Uint8Array(pdfData), '486911');
   const parsed = parseUnionBank(pages);
 

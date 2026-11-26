@@ -1,0 +1,25 @@
+# Production Compose configuration using the published multi-arch GHCR image.
+# To build and run from local source instead:
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d --build
+
+services:
+  expense-tracker:
+    image: ghcr.io/tunitz/expense-tracker:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3020}:3020"
+    environment:
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-1}
+      COOKIE_SECURE: ${COOKIE_SECURE:-0}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+    volumes:
+      - expense-data:/data
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3020/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  expense-data: {}

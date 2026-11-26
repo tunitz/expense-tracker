@@ -10,6 +10,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const FIXTURE_DIR = path.join(__dirname, '..', '..', '..', 'fixtures', 'private');
+const hasUnionbankPdf = fs.existsSync(path.join(FIXTURE_DIR, 'unionbank.pdf'));
+const hasBpiPdf = fs.existsSync(path.join(FIXTURE_DIR, 'bpi.pdf'));
 
 function createAppWithUser(db: Database, userId: string) {
   const app = new Hono<AppEnv>();
@@ -106,7 +108,7 @@ describe('documents routes', () => {
       expect(body.error).toBe('not_pdf');
     });
 
-    it('rejects unionbank without password => 423 wrong:false', async () => {
+    it.skipIf(!hasUnionbankPdf)('rejects unionbank without password => 423 wrong:false', async () => {
       const pdfBytes = fs.readFileSync(path.join(FIXTURE_DIR, 'unionbank.pdf'));
       const app = createAppWithUser(db, user1Id);
       const form = makeFormData(pdfBytes, 'unionbank.pdf');
@@ -117,7 +119,7 @@ describe('documents routes', () => {
       expect(body.wrong).toBe(false);
     });
 
-    it('rejects unionbank with wrong password => 423 wrong:true', async () => {
+    it.skipIf(!hasUnionbankPdf)('rejects unionbank with wrong password => 423 wrong:true', async () => {
       const pdfBytes = fs.readFileSync(path.join(FIXTURE_DIR, 'unionbank.pdf'));
       const app = createAppWithUser(db, user1Id);
       const form = makeFormData(pdfBytes, 'unionbank.pdf', 'wrongpassword');
@@ -128,7 +130,7 @@ describe('documents routes', () => {
       expect(body.wrong).toBe(true);
     });
 
-    it('accepts unionbank with correct password => 201, added 91', async () => {
+    it.skipIf(!hasUnionbankPdf)('accepts unionbank with correct password => 201, added 91', async () => {
       const pdfBytes = fs.readFileSync(path.join(FIXTURE_DIR, 'unionbank.pdf'));
       const app = createAppWithUser(db, user1Id);
       const form = makeFormData(pdfBytes, 'unionbank.pdf', '486911');
@@ -144,7 +146,7 @@ describe('documents routes', () => {
       expect(body.warnings).toEqual([]);
     });
 
-    it('rejects duplicate unionbank => 409', async () => {
+    it.skipIf(!hasUnionbankPdf)('rejects duplicate unionbank => 409', async () => {
       const pdfBytes = fs.readFileSync(path.join(FIXTURE_DIR, 'unionbank.pdf'));
       const app = createAppWithUser(db, user1Id);
       const form1 = makeFormData(pdfBytes, 'unionbank.pdf', '486911');
@@ -156,7 +158,7 @@ describe('documents routes', () => {
       expect(body.error).toBe('already_uploaded');
     });
 
-    it('accepts bpi with correct password => 201, added 4', async () => {
+    it.skipIf(!hasBpiPdf)('accepts bpi with correct password => 201, added 4', async () => {
       const pdfBytes = fs.readFileSync(path.join(FIXTURE_DIR, 'bpi.pdf'));
       const app = createAppWithUser(db, user1Id);
       const form = makeFormData(pdfBytes, 'bpi.pdf', '19930404');
@@ -171,7 +173,7 @@ describe('documents routes', () => {
   });
 
   describe('GET /documents', () => {
-    it('lists documents with txnCount', async () => {
+    it.skipIf(!hasUnionbankPdf || !hasBpiPdf)('lists documents with txnCount', async () => {
       const app = createAppWithUser(db, user1Id);
 
       // Upload unionbank
@@ -202,7 +204,7 @@ describe('documents routes', () => {
   });
 
   describe('DELETE /documents/:id', () => {
-    it('removes document and its transactions', async () => {
+    it.skipIf(!hasUnionbankPdf)('removes document and its transactions', async () => {
       const app = createAppWithUser(db, user1Id);
 
       // Upload unionbank
@@ -230,7 +232,7 @@ describe('documents routes', () => {
       expect(txnCountAfter.cnt).toBe(0);
     });
 
-    it('returns 404 for another user\'s document', async () => {
+    it.skipIf(!hasUnionbankPdf)('returns 404 for another user\'s document', async () => {
       const { app1, app2 } = createTwoUserApp(db);
 
       // User1 uploads
@@ -248,7 +250,7 @@ describe('documents routes', () => {
   });
 
   describe('cross-user isolation', () => {
-    it('user2 cannot see user1\'s documents', async () => {
+    it.skipIf(!hasUnionbankPdf)('user2 cannot see user1\'s documents', async () => {
       const { app1, app2 } = createTwoUserApp(db);
 
       // User1 uploads
@@ -265,7 +267,7 @@ describe('documents routes', () => {
       expect(docs.length).toBe(0);
     });
 
-    it('user2 cannot delete user1\'s document', async () => {
+    it.skipIf(!hasUnionbankPdf)('user2 cannot delete user1\'s document', async () => {
       const { app1, app2 } = createTwoUserApp(db);
 
       // User1 uploads

@@ -1,46 +1,57 @@
+# syntax=docker/dockerfile:1
+
 # Stage 1: Build the web frontend
-FROM oven/bun:1 AS web
+FROM oven/bun:1-alpine AS web
 WORKDIR /app
 COPY package.json bun.lock bunfig.toml tsconfig.json ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 COPY web/ ./web/
 RUN bun run build
 
-# Stage 2: Install production dependencies for the server
-FROM oven/bun:1 AS deps
+# Stage 2: Install production dependencies and trim unused pdfjs-dist assets
+FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --production && \
+    rm -rf node_modules/pdfjs-dist/build \
+           node_modules/pdfjs-dist/web \
+           node_modules/pdfjs-dist/types \
+           node_modules/pdfjs-dist/webpack.mjs \
+           node_modules/pdfjs-dist/legacy/build/*.min.mjs \
+           node_modules/pdfjs-dist/legacy/build/pdf.sandbox.* && \
+    find node_modules -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.d.mts' -o -name 'README.md' -o -name 'CODE_OF_CONDUCT.md' \) -delete
 
-# Build the PDF decoder against the same Debian base as the runtime.
-FROM rust:1.97-bookworm AS decoder
-WORKDIR /build
-COPY rust/statement-cp037/Cargo.toml rust/statement-cp037/Cargo.lock rust/statement-cp037/build.rs ./
-COPY rust/statement-cp037/src ./src
-RUN cargo build --release --locked && \
-    cp target/release/libstatement_cp037.so /statement_cp037.node
+# Stage 3: Minimal Bun Alpine runtime (pure JS CP037 decoder, no Rust toolchain)
+FROM oven/bun:1-alpine AS runtime
+LABEL org.opencontainers.image.title="expense-tracker" \
+      org.opencontainers.image.description="Personal expense tracker with BPI and UnionBank PDF statement import" \
+      org.opencontainers.image.source="https://github.com/tunitz/expense-tracker" \
+      org.opencontainers.image.licenses="MIT"
 
-# Slim runtime image
-FROM oven/bun:1-slim
 WORKDIR /app
-ENV NODE_ENV=production PORT=3020 DATA_DIR=/data WEB_DIR=/app/web/dist
+ENV NODE_ENV=production \
+    PORT=3020 \
+    DATA_DIR=/data \
+    WEB_DIR=/app/web/dist \
+    EXPENSE_CP037_MODE=js
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json ./
-COPY src/server ./src/server
-COPY --from=decoder /statement_cp037.node ./rust/statement-cp037/statement_cp037.node
-COPY tsconfig.json ./
-COPY --from=web /app/web/dist ./web/dist
+COPY --link --from=deps --chown=1000:1000 /app/node_modules ./node_modules
+COPY --link --chown=1000:1000 package.json tsconfig.json ./
+COPY --link --chown=1000:1000 src/server ./src/server
+COPY --link --from=web --chown=1000:1000 /app/web/dist ./web/dist
 
 RUN find src/server -name '*.test.ts' -delete && \
     mkdir -p /data && \
-    chown -R bun:bun /data /app
-USER bun
+    chown 1000:1000 /data && \
+    chmod 700 /data
 
+USER bun
 VOLUME /data
 EXPOSE 3020
 
-HEALTHCHECK --interval=30s --timeout=5s \
-    CMD bun -e "fetch('http://localhost:3020/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD bun -e "fetch('http://127.0.0.1:3020/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["bun","run","src/server/main.ts"]
+ENTRYPOINT ["bun", "run", "src/server/main.ts"]

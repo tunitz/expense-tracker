@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Test, Typecheck, Lint & Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run unit tests (JS decoder)
+        env:
+          EXPENSE_CP037_MODE: js
+        run: bun test
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Build web bundle
+        run: bun run build
+
+  docker:
+    name: Docker Build & Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build native image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          load: true
+          tags: expense-tracker:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify non-root user, image size, and /api/health
+        run: |
+          set -euo pipefail
+          IMAGE_USER="$(docker inspect expense-tracker:ci --format '{{.Config.User}}')"
+          echo "Configured container user: ${IMAGE_USER}"
+          if [ "${IMAGE_USER}" != "bun" ]; then
+            echo "Expected USER bun, got ${IMAGE_USER}" >&2
+            exit 1
+          fi
+          docker images expense-tracker:ci
+          CID="$(docker run -d -p 127.0.0.1:3020:3020 -e ALLOW_SIGNUP=0 expense-tracker:ci)"
+          trap 'docker rm -f "${CID}" >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 15); do
+            if RESP="$(curl -fsS http://127.0.0.1:3020/api/health 2>/dev/null)"; then
+              echo "Healthcheck response: ${RESP}"
+              echo "${RESP}" | grep -q '"ok":true'
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs "${CID}"
+          exit 1
+
+      - name: Verify multi-arch build (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
