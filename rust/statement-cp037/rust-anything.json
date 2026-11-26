@@ -1,0 +1,61 @@
+{
+  "schema": "rust-anything/bridge@1",
+  "root": "../..",
+  "unit": "src/server/parsers/",
+  "language": "ts",
+  "kind": "napi",
+  "crate_name": "statement-cp037",
+  "exports": [
+    {
+      "name": "decodeCp037",
+      "file": "src/server/parsers/cp037.ts",
+      "line": 5,
+      "params": [
+        {
+          "name": "str",
+          "ts_type": "string",
+          "optional": false,
+          "rest": false
+        }
+      ],
+      "returns": "string",
+      "is_async": false,
+      "is_generator": false,
+      "type_params": [],
+      "uses_instanceof": false
+    }
+  ],
+  "classes": [],
+  "js_only": [
+    {
+      "name": "parseBpi",
+      "file": "src/server/parsers/bpi.ts",
+      "line": 43,
+      "reason": "kept on request"
+    },
+    {
+      "name": "TooManyPagesError",
+      "file": "src/server/parsers/extract.ts",
+      "line": 6,
+      "reason": "class: extends another class"
+    },
+    {
+      "name": "PdfPasswordError",
+      "file": "src/server/parsers/extract.ts",
+      "line": 13,
+      "reason": "class: extends another class, public field `wrong`"
+    },
+    {
+      "name": "extractPages",
+      "file": "src/server/parsers/extract.ts",
+      "line": 21,
+      "reason": "kept on request"
+    },
+    {
+      "name": "parseUnionBank",
+      "file": "src/server/parsers/unionbank.ts",
+      "line": 103,
+      "reason": "kept on request"
+    }
+  ]
+}
